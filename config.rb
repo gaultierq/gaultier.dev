@@ -22,6 +22,10 @@ activate :external_pipeline,
          latency: 2,
          source: "./dist/"
 
+# https://github.com/edgecase/middleman-gh-pages?tab=readme-ov-file#project-page-path-issues
+activate :relative_assets
+set :relative_links, true
+
 # With alternative layout
 # page '/path/to/file.html', layout: 'other_layout'
 
