@@ -3,24 +3,24 @@ header.flex.mt-4
   div.ml-4
     h2.text-2xl.leading-6
       | Quentin  Gaultier
-    div class="mt-1 print:hidden"
+    div class="mt-1 print:hidden flex gap-2"
       a href="https://github.com/gaultierq" target="_blank"
-        = image_tag 'github-mark.png', class: "flex-none w-5 h-5 object-cover rounded-full ring-1 ring-gray-200 hover:ring-gray-400 hidden screen:inline-block"
+        = image_tag 'github-mark.png', class: "w-5 h-5 object-cover rounded-full ring-1 ring-gray-200 hover:ring-gray-400"
         span class="hidden print:block"
           = '@gaultierq'
 
       a href="https://www.linkedin.com/in/quentin-gaultier-9b995a41/" target="_blank"
-        = image_tag 'linkedin.png', class: "flex-none w-5 h-5 object-cover rounded-full ring-1 ring-gray-200 hover:ring-gray-400 hidden screen:inline-block ml-2"
+        = image_tag 'linkedin.png', class: "flex-none w-5 h-5 object-cover rounded-full ring-1 ring-gray-200 hover:ring-gray-400"
         span class="hidden print:block"
           = 'linkedin.com/in/quentin-gaultier-9b995a41'
 
       a href="https://stackoverflow.com/users/1929671/quentin-gaultier" target="_blank"
-        = image_tag 'stackoverflow.png', class: "flex-none w-5 h-5 object-cover hidden screen:inline-block ml-2"
+        = image_tag 'stackoverflow.png', class: "flex-none w-5 h-5 object-cover"
         span class="hidden print:block"
           = 'stackoverflow: quentin-gaultier'
 
-      div class="rounded-full" id='email-button'
-        | <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+      div class="rounded-full hover:ring-1 ring-gray-200 cursor-pointer" id='email-button'
+        | <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm0 0c0 1.657 1.007 3 2.25 3S21 13.657 21 12a9 9 0 1 0-2.636 6.364M16.5 12V8.25" />
           </svg>
 div.text-sm.font-bold.mt-2
