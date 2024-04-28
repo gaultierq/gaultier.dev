@@ -15,16 +15,16 @@ body {
 
 @layer base {
     h1 {
-        @apply text-2xl font-semibold text-gray-700 ;
+        @apply text-2xl font-semibold text-gray-700;
     }
     h2 {
-        @apply text-xl font-semibold;
+        @apply text-xl font-semibold text-gray-700;
     }
     h3 {
-        @apply text-lg font-semibold text-gray-700;
+        @apply text-lg font-bold text-gray-700;
     }
     h4 {
-        @apply font-bold text-sm;
+        @apply font-bold text-sm text-gray-600;
     }
 }
 
@@ -47,7 +47,7 @@ body {
     }
 
     t {
-        @apply px-1 pb-[2px] text-gray-700 bg-gray-200 rounded;
+        @apply px-1 pb-[2px] text-gray-700 bg-gray-200 rounded rounded-[0.4rem];
     }
 
     c {
