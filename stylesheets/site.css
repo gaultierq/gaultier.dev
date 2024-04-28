@@ -481,11 +481,13 @@ h1 {
 h2 {
   font-size: 1rem;
   font-weight: 600;
+  --tw-text-opacity: 1;
+  color: rgb(55 65 81 / var(--tw-text-opacity));
 }
 
 h3 {
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 700;
   --tw-text-opacity: 1;
   color: rgb(55 65 81 / var(--tw-text-opacity));
 }
@@ -493,6 +495,8 @@ h3 {
 h4 {
   font-size: 0.7rem;
   font-weight: 700;
+  --tw-text-opacity: 1;
+  color: rgb(75 85 99 / var(--tw-text-opacity));
 }
 
 *, ::before, ::after {
@@ -996,7 +1000,7 @@ body {
   }
 
   t {
-    border-radius: 0.25rem;
+    border-radius: 0.4rem;
     --tw-bg-opacity: 1;
     background-color: rgb(229 231 235 / var(--tw-bg-opacity));
     padding-left: 0.25rem;
