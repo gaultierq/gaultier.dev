@@ -1,9 +1,14 @@
 window.onload = function(){
-    const button = document.getElementById('email-button');
-    if (button) {
-        button.onclick = function(){
-            window.alert('quentin' + '@' + window.location.hostname);
-        };
+    const email = document.getElementById('email');
+    if (email) {
+        email.innerText = 'quentin' + '@' + window.location.hostname;
+        email.href = 'mailto:' + email.innerText;
+    }
+
+    const phone = document.getElementById('phone');
+    if (phone) {
+        phone.innerText = '+' + '33' + ' 6' + ' 27' + ' 93' + ' 47' + ' 50' ;
+        phone.href = 'tel:' + phone.innerText;
     }
 
 };
