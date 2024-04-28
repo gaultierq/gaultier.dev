@@ -5,34 +5,51 @@ header.flex.mt-4
       | Quentin  Gaultier
     div class="mt-1 print:hidden flex gap-2"
       a href="https://github.com/gaultierq" target="_blank"
-        = image_tag 'github-mark.png', class: "w-5 h-5 object-cover rounded-full ring-1 ring-gray-200 hover:ring-gray-400"
+        = image_tag 'github-mark.png', class: "w-5 h-5 object-cover  rounded-full hover:scale-110"
         span class="hidden print:block"
           = '@gaultierq'
 
       a href="https://www.linkedin.com/in/quentin-gaultier-9b995a41/" target="_blank"
-        = image_tag 'linkedin.png', class: "flex-none w-5 h-5 object-cover rounded-full ring-1 ring-gray-200 hover:ring-gray-400"
+        = image_tag 'linkedin.png', class: "flex-none w-5 h-5 object-cover rounded-full hover:scale-110"
         span class="hidden print:block"
           = 'linkedin.com/in/quentin-gaultier-9b995a41'
 
       a href="https://stackoverflow.com/users/1929671/quentin-gaultier" target="_blank"
-        = image_tag 'stackoverflow.png', class: "flex-none w-5 h-5 object-cover"
+        = image_tag 'stackoverflow.png', class: "flex-none w-5 h-5 object-cover rounded-full hover:scale-110"
         span class="hidden print:block"
           = 'stackoverflow: quentin-gaultier'
 
-      div class="rounded-full hover:ring-1 ring-gray-200 cursor-pointer" id='email-button'
-        | <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm0 0c0 1.657 1.007 3 2.25 3S21 13.657 21 12a9 9 0 1 0-2.636 6.364M16.5 12V8.25" />
-          </svg>
-div.text-sm.font-bold.mt-2
+
+div.text-sm.font-semibold.mt-2.space-y-2
+
+
   div.flex.items-center.gap-1
-    | <svg  xmlns="http://www.w3.org/2000/svg"  width="20"  height="20"  viewBox="0 0 20 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-map-pin"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /><path d="M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0z" /></svg>
+    | <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
+        <path fill-rule="evenodd" d="M11.89 4.111a5.5 5.5 0 1 0 0 7.778.75.75 0 1 1 1.06 1.061A7 7 0 1 1 15 8a2.5 2.5 0 0 1-4.083 1.935A3.5 3.5 0 1 1 11.5 8a1 1 0 0 0 2 0 5.48 5.48 0 0 0-1.61-3.889ZM10 8a2 2 0 1 0-4 0 2 2 0 0 0 4 0Z" clip-rule="evenodd" />
+      </svg>
+    a id='email' class="hover:font-bold"
+
+
+  div.flex.items-center.gap-1
+    | <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
+        <path fill-rule="evenodd" d="m3.855 7.286 1.067-.534a1 1 0 0 0 .542-1.046l-.44-2.858A1 1 0 0 0 4.036 2H3a1 1 0 0 0-1 1v2c0 .709.082 1.4.238 2.062a9.012 9.012 0 0 0 6.7 6.7A9.024 9.024 0 0 0 11 14h2a1 1 0 0 0 1-1v-1.036a1 1 0 0 0-.848-.988l-2.858-.44a1 1 0 0 0-1.046.542l-.534 1.067a7.52 7.52 0 0 1-4.86-4.859Z" clip-rule="evenodd" />
+      </svg>
+    a id='phone' class="hover:font-bold"
+
+  div.flex.items-center.gap-1
+    | <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
+        <path fill-rule="evenodd" d="m7.539 14.841.003.003.002.002a.755.755 0 0 0 .912 0l.002-.002.003-.003.012-.009a5.57 5.57 0 0 0 .19-.153 15.588 15.588 0 0 0 2.046-2.082c1.101-1.362 2.291-3.342 2.291-5.597A5 5 0 0 0 3 7c0 2.255 1.19 4.235 2.292 5.597a15.591 15.591 0 0 0 2.046 2.082 8.916 8.916 0 0 0 .189.153l.012.01ZM8 8.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" clip-rule="evenodd" />
+      </svg>
     | La Rochelle, France
 
-section.mt-4
-  section.my-2.relative.text-lg.leading-4
+
+section.mt-8
+  section.my-2.relative.text-lg.leading-5
+    .absolute.bg-accent.opacity-10.-right-3.-top-4.rounded-xl.border-gray-200.border.border-l-0.z-0.shadow-xl style="height: calc(100% + 2rem); width: calc(100% + 3rem);"
+
     div.z-10.relative
       p
-        | Highly versatile and results-driven <b>full stack engineer</b> with extensive experience in the React ecosystem and <t>Ruby on Rails</t>.
+        | Highly versatile and results-driven <b>full stack engineer</b> for 10y+ with extensive experience in the <t>React</t> ecosystem and <t>Ruby on Rails</t>.
       br
       p
         | <i>Seeking</i> <t>remote</t> opportunities to leverage technical expertise and leadership skills to drive innovative projects to success.
@@ -50,14 +67,18 @@ section.mt-8
 
 
 section.mt-8
-  h3 About
-  ul
-    li Lived the nomadic life for 6 years
-    li
+  h3 Beyond coding
+  div
+    | In 2016, I left Paris and lived the nomadic life for 6 years,
+    span
+      = " "
       = cute_link_to "https://www.youtube.com/watch?v=6QAcB_E2sMY" do
-        | Sailed around the world in 2020
-    li Loves to kitesurf
-    li
+        | sailed around the world in 2020.
+    = " "
+    div
+      | I speak FR, EN, ES
+    div
+      | I've been honing my <b>kitesurfing</b> skills since 2011 & constantly keep an eye on the wind forecast.
+    div
       = cute_link_to 'https://lichess.org/@/qgaultier' do
-        | A terrible chess player
-    li Speaks FR, EN, ES
+        | A <strike>terrible</strike> fervent <b>chess</b> player
