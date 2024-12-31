@@ -22,6 +22,12 @@ activate :external_pipeline,
          latency: 2,
          source: "./dist/"
 
+activate :external_pipeline,
+         name: :tailwind,
+         command: "yarn tailwindcss -i ./source/stylesheets/resume.css -o ./dist/stylesheets/resume.css #{"--watch" unless build?}",
+         latency: 2,
+         source: "./dist/"
+
 # https://github.com/edgecase/middleman-gh-pages?tab=readme-ov-file#project-page-path-issues
 activate :relative_assets
 set :relative_links, true
@@ -76,3 +82,4 @@ Slim::Engine.set_options shortcut: {'@' => {tag: 'span', additional_attrs: { cla
 #   activate :minify_css
 #   activate :minify_javascript, compressor: Terser.new
 # end
+page "/resume", :layout => "resume"

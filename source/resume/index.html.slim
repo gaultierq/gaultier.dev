@@ -1,27 +1,10 @@
-doctype html
-html[lang="en"]
-  head
-    meta[charset="UTF-8"]
-    meta[name="description" content="Fullstack Engineer"]
-    meta[name="keywords" content="resume,cv,Quentin Gaultier,fullstack"]
-    meta[name="author" content="Quentin Gaultier"]
-    meta[name="viewport" content="width=device-width, initial-scale=1.0"]
-    meta[http-equiv="X-UA-Compatible" content="ie=edge"]
-
-    = stylesheet_link_tag "site"
-    = javascript_include_tag "site"
-
-    title  Quentin Gaultier — Resume
-  body
-    main
-      .grid.grid-cols-1.print:grid-cols-3.md:grid-cols-3.max-w-3xl.m-auto.gap-8.bg-background.screen:p-4.rounded.screen:shadow-xl.overflow-x-hidden.md:my-4
-        .col-span-1.rounded
-          == partial "fragments/presentation"
+.grid.grid-cols-1.print:grid-cols-3.md:grid-cols-3.max-w-3xl.m-auto.gap-8.bg-background.screen:p-4.rounded.screen:shadow-xl.overflow-x-hidden.md:my-4
+  .col-span-1.rounded
+    == partial "fragments/presentation"
 
 
-        .col-span-2.rounded
-          == partial "fragments/experience"
-
+  .col-span-2.rounded
+    == partial "fragments/experience"
 
 css:
   body {

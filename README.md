@@ -1,0 +1,6 @@
+
+## development
+
+```shell
+$ middleman server
+```
