@@ -1,3 +1,5 @@
+const defaultTheme = require('tailwindcss/defaultTheme')
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
@@ -29,6 +31,10 @@ module.exports = {
         '2xl': '1.4rem',
         '3xl': '1.7rem',
       },
+      fontFamily: {
+        sans: ['Inter var', ...defaultTheme.fontFamily.sans],
+        serif: ['"Crimson Text"', 'serif'],
+      },
       typography: {
         default: {
           css: {
@@ -36,7 +42,7 @@ module.exports = {
             code: false,
             'pre code': false,
             'code::before': false,
-            'code::after': false
+            'code::after': false,
           }
         }
 
