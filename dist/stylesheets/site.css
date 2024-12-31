@@ -1103,8 +1103,16 @@ h4 {
   position: sticky;
 }
 
+.right-4 {
+  right: 1rem;
+}
+
 .top-0 {
   top: 0px;
+}
+
+.top-4 {
+  top: 1rem;
 }
 
 .z-0 {

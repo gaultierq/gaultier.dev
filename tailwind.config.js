@@ -29,6 +29,18 @@ module.exports = {
         '2xl': '1.4rem',
         '3xl': '1.7rem',
       },
+      typography: {
+        default: {
+          css: {
+            pre: false,
+            code: false,
+            'pre code': false,
+            'code::before': false,
+            'code::after': false
+          }
+        }
+
+      }
     },
   },
   plugins: [require('@tailwindcss/typography')],

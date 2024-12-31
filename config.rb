@@ -34,7 +34,10 @@ set :relative_links, true
 
 
 set :markdown_engine, :redcarpet
-set :markdown, :fenced_code_blocks => true, :smartypants => true
+set :markdown,
+    fenced_code_blocks: true,
+    smartypants: true,
+    with_toc_data: true  # <-- This adds id attributes to headings
 
 # With alternative layout
 # page '/path/to/file.html', layout: 'other_layout'
