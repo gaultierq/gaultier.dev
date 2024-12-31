@@ -32,6 +32,10 @@ activate :external_pipeline,
 activate :relative_assets
 set :relative_links, true
 
+
+set :markdown_engine, :redcarpet
+set :markdown, :fenced_code_blocks => true, :smartypants => true
+
 # With alternative layout
 # page '/path/to/file.html', layout: 'other_layout'
 
@@ -50,7 +54,7 @@ activate :blog do |blog|
   # Matcher for blog source files
   # blog.sources = "{year}-{month}-{day}-{title}.html"
   # blog.taglink = "tags/{tag}.html"
-  # blog.layout = "layout"
+  blog.layout = "article_layout"
   # blog.summary_separator = /(READMORE)/
   # blog.summary_length = 250
   # blog.year_link = "{year}.html"
@@ -69,9 +73,10 @@ end
 
 page "/feed.xml", layout: false
 # Reload the browser automatically whenever files change
-# configure :development do
-#   activate :livereload
-# end
+configure :development do
+  activate :livereload
+end
+
 # proxy(
 #   '/this-page-has-no-template.html',
 #   '/template-file.html',

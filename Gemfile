@@ -14,3 +14,7 @@ gem 'tzinfo-data', platforms: [:mswin, :mingw, :jruby, :x64_mingw]
 
 # For faster file watcher updates on Windows:
 gem 'wdm', '~> 0.1', platforms: [:mswin, :mingw, :x64_mingw]
+
+gem "redcarpet", "~> 3.6"
+
+gem "middleman-livereload", "~> 3.4"

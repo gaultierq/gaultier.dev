@@ -4,7 +4,7 @@ date: 2024-12-31
 tags: rails postgres
 ---
 
-### **Introduction**
+### Introduction
 
 In this post, I will share the insights I gained and the steps I followed to optimize the performance of a PostgreSQL query on a large table by creating a partial index.
 
@@ -13,10 +13,7 @@ I was working on improving the speed of a query while keeping my database lightw
 ### Use case
 
 > Let’s assume we are running a messaging app where `users` can send messages to each others. On some occasions, our AI detection will flag some flags are `abusive` and our support team need to review these messages.
->
-
 > Support team complains the list of abusive message they need to review takes a lot of time to load.
->
 
 ### Methodology
 
@@ -40,7 +37,7 @@ A quick look at our logs and I could already see that most of the time was spend
 
 At this point, I decided to add an extra log to production, to narrow down to the exact problematic query. This way, we can measure and verify later that whatever optimization we came up with actually had some effect.
 
-## 1. Finding a way to make the bug appear in local
+## 2. Finding a way to make the bug appear in local
 
 The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the `messages` table is approximately 1TB, with several indexes exceeding 100GB each. So, using the production data wasn’t a handy solution,and I had to create some sample data instead.
 
@@ -50,38 +47,38 @@ In this section I will setup a local postgres and generate some random data usin
 
 - setup a test db
 
-    ```bash
-    docker run --platform linux/arm64 \
-      --name postgres17 \
-      -e POSTGRES_USER=postgres \
-      -e POSTGRES_DB=partial_blog \
-      -e POSTGRES_HOST_AUTH_METHOD=trust \
-      -p 5417:5432 \
-      -d postgres:17
-    
-    ```
+```bash
+docker run --platform linux/arm64 \
+  --name postgres17 \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_DB=partial_blog \
+  -e POSTGRES_HOST_AUTH_METHOD=trust \
+  -p 5417:5432 \
+  -d postgres:17
+
+```
 
 - create the messages table and some indexes
 
-    ```sql
-    DROP TABLE IF EXISTS messages ;
-    
-    CREATE TABLE messages (
-        id SERIAL PRIMARY KEY,           
-        created_at TIMESTAMP NOT NULL,   
-        updated_at TIMESTAMP NOT NULL,   
-        author_id INTEGER NOT NULL,      
-        content TEXT NOT NULL,           
-        is_abusive BOOLEAN NOT NULL,        -- Whether the message is abusive
-        is_spam  BOOLEAN NOT NULL,
-        is_reviewed BOOLEAN NOT NULL,       -- Whether the message has been reviewed by support team
-        is_archived BOOLEAN NOT NULL
-    );
-    
-    CREATE INDEX idx_messages_created_at ON messages (created_at);
-    CREATE INDEX idx_messages_author_created_at ON messages (author_id, created_at);
-    CREATE INDEX idx_messages_abusive_reviewed ON messages (is_abusive, is_spam, is_reviewed, is_archived);
-    ```
+```sql
+DROP TABLE IF EXISTS messages ;
+
+CREATE TABLE messages (
+    id SERIAL PRIMARY KEY,           
+    created_at TIMESTAMP NOT NULL,   
+    updated_at TIMESTAMP NOT NULL,   
+    author_id INTEGER NOT NULL,      
+    content TEXT NOT NULL,           
+    is_abusive BOOLEAN NOT NULL,        -- Whether the message is abusive
+    is_spam  BOOLEAN NOT NULL,
+    is_reviewed BOOLEAN NOT NULL,       -- Whether the message has been reviewed by support team
+    is_archived BOOLEAN NOT NULL
+);
+
+CREATE INDEX idx_messages_created_at ON messages (created_at);
+CREATE INDEX idx_messages_author_created_at ON messages (author_id, created_at);
+CREATE INDEX idx_messages_abusive_reviewed ON messages (is_abusive, is_spam, is_reviewed, is_archived);
+```
 
 
 Now that my postgres db is up an running, it’s time to populate my `messages` table with some data. To do that we will use a sql script, that will generate 10 millions messages.
@@ -148,50 +145,48 @@ On my recent laptop it takes about a minute to populate.
 
   My first approach was pretty naive:
 
-    ```sql
-    WITH existing_max_id AS (
-        SELECT COALESCE(MAX(id), 0) AS max_id FROM messages 
-    ),
-    random_data AS (
-        SELECT 
-            (existing_max_id.max_id + row_number() OVER ()) AS id,  
-            NOW() - INTERVAL '2 months' + (gs * INTERVAL '40 seconds') AS created_at,
-            (random() < 0.01) AS abusive,  -- 1% chance of being abusive
-            CASE 
-                WHEN (random() < 0.01) THEN (random() < 0.5)  -- 50% of abusive have been reviewed
-                ELSE FALSE  -- Always false if not abusive
-            END AS reviewed,
-            'Generated content: ' || substring(md5(random()::text) || md5(random()::text) FROM 1 FOR (10 + (random() * 50)::int)) AS content  -- Random content size
-        FROM generate_series(1, 10000000) AS gs,
-             existing_max_id
-    )
-    INSERT INTO messages (
-        id,
-        created_at,
-        updated_at,
-        author_id,
-        content,
-        abusive,
-        reviewed
-    )
+```sql
+WITH existing_max_id AS (
+    SELECT COALESCE(MAX(id), 0) AS max_id FROM messages 
+),
+random_data AS (
     SELECT 
-        id,
-        created_at,
-        created_at AS updated_at,
-        id % 100 + 1 AS author_id,  -- Example: author_id based on id (modify as needed)
-        content,
-        abusive,
-        reviewed
-    FROM random_data;
-    
-    ```
+        (existing_max_id.max_id + row_number() OVER ()) AS id,  
+        NOW() - INTERVAL '2 months' + (gs * INTERVAL '40 seconds') AS created_at,
+        (random() < 0.01) AS abusive,  -- 1% chance of being abusive
+        CASE 
+            WHEN (random() < 0.01) THEN (random() < 0.5)  -- 50% of abusive have been reviewed
+            ELSE FALSE  -- Always false if not abusive
+        END AS reviewed,
+        'Generated content: ' || substring(md5(random()::text) || md5(random()::text) FROM 1 FOR (10 + (random() * 50)::int)) AS content  -- Random content size
+    FROM generate_series(1, 10000000) AS gs,
+         existing_max_id
+)
+INSERT INTO messages (
+    id,
+    created_at,
+    updated_at,
+    author_id,
+    content,
+    abusive,
+    reviewed
+)
+SELECT 
+    id,
+    created_at,
+    created_at AS updated_at,
+    id % 100 + 1 AS author_id,  -- Example: author_id based on id (modify as needed)
+    content,
+    abusive,
+    reviewed
+FROM random_data;
+
+```
 
 
 When we to try to retrieve the abusive which hasn’t been reviewed yet, we notice the query is pretty fast ! It took around 30ms which is not that long.
-
 Let’s find out what is going on here, by explaining the query plan.
-
-It appear that postgres only had to examine only 189k rows.
+It appears that postgres only had to examine only 189k rows.
 
 That’s because my created data has “too many” errors row, postgres will find the 100 rows very quickly, and doesn’t need to examine too much data.
 
@@ -203,7 +198,7 @@ And now, running the query takes a lot more time: around 250ms. And remember, my
 
 - Query plan when there is  1 abusive message every  1 million and 20 millions messages ⇒ 400ms
 
-    ```bash
+```bash
     
     Limit  (cost=371054.44..371054.45 rows=1 width=80) (actual time=368.576..370.384 rows=5 loops=1)
       Output: id, created_at, updated_at, author_id, content, abusive, reviewed
@@ -241,10 +236,10 @@ And now, running the query takes a lot more time: around 250ms. And remember, my
       Options: Inlining false, Optimization false, Expressions true, Deforming true
       Timing: Generation 0.820 ms (Deform 0.448 ms), Inlining 0.000 ms, Optimization 0.701 ms, Emission 10.675 ms, Total 12.196 ms
     Execution Time: 371.023 ms
-    ```
+```
 
 
-Wo we reach our goal: generating a dataset that will let the performance issue arise.
+We reach our goal: generating a dataset that will let the performance issue arise.
 
 ## 3. Analyse and experiment
 
@@ -309,7 +304,7 @@ The all magic happens in the `where` clause. The index will be written to only w
 
 ## **Measure & consolidate**
 
-Running the query in production and confirm our issue is fixed. Using the measure we implemented in the first section was a good confirmation your partial index helped.
+Running the query in production confirmed our issue was fixed. Using the measure we implemented in the first section was a good confirmation your partial index helped.
 
 Partial indexes are fragile, and if the condition changes, i.e. the filter condition evolves, the query planner won’t may not be able to use the query planner anymore, and as a result the same bug may re-appear in the future.
 
