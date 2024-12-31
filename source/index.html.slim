@@ -1,10 +1,15 @@
-nav class="float-left top-0 sticky p-8 w-[250px] bg-gray-800 h-screen"
-  = link_to "/index.html" do
-    span class="font-serif text-2xl font-semibold whitespace-nowrap text-white" gaultier.dev
-  div
-    ul class="grid gap-4 mt-8 text-white"
-      li = link_to "About", "/about.html"
-      li = link_to "New post", "/posts.html"
-
 main class="flex flex-col gap-8 p-8"
-  ' hello
+  h2 Recent Articles
+  ol
+    - blog.articles[0...10].each do |article|
+      li = link_to article.title, article
+      span = article.date.strftime('%b %e')
+  h2 Tags
+  ol
+    - blog.tags.each do |tag, articles|
+      li = link_to "#{tag} (#{articles.size})", tag_path(tag)
+  h2 By Year
+  ol
+    - blog.articles.group_by { |a| a.date.year }.each do |year, articles|
+      li = link_to "#{year} (#{articles.size})", blog_year_path(year)
+

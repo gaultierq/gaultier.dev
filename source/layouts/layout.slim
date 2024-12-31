@@ -1,0 +1,21 @@
+| <!doctype html>
+html
+  head
+    meta[charset="utf-8"]
+    meta[http-equiv="X-UA-Compatible" content="ie=edge"]
+    meta[name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"]
+    title = "gaultier.dev"
+    = feed_tag :atom, "#{blog.options.prefix.to_s}/feed.xml", title: "Atom Feed"
+    = stylesheet_link_tag "site"
+    = javascript_include_tag "site"
+  body
+    div role="main"
+      nav class="float-left top-0 sticky p-8 w-[250px] bg-gray-800 h-screen"
+        = link_to "/index.html" do
+          span class="font-serif text-2xl font-semibold whitespace-nowrap text-white" gaultier.dev
+        div
+          ul class="grid gap-4 mt-8 text-white"
+            li = link_to "About", "/about"
+
+      = yield
+
