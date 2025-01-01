@@ -1351,10 +1351,6 @@ video {
   grid-template-columns: repeat(1, minmax(0, 1fr));
 }
 
-.flex-col{
-  flex-direction: column;
-}
-
 .items-center{
   align-items: center;
 }
@@ -1456,6 +1452,10 @@ video {
   font-size: 1.4rem;
 }
 
+.text-3xl{
+  font-size: 1.7rem;
+}
+
 .text-lg{
   font-size: 0.85rem;
 }
@@ -1478,11 +1478,6 @@ video {
 
 .leading-6{
   line-height: 1.5rem;
-}
-
-.text-gray-300{
-  --tw-text-opacity: 1;
-  color: rgb(209 213 219 / var(--tw-text-opacity));
 }
 
 .text-gray-800{
