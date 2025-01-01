@@ -1,5 +1,5 @@
-.prose.text-gray-300
-  h1.title About
+div class="prose lg:prose-xl prose-code:before:hidden prose-code:after:hidden prose-headings:font-serif"
+  h1 About
 
   = image_tag "profile.png", class: "w-52 h-52 rounded-full object-cover"
   div Hello, 👋
@@ -8,11 +8,11 @@
   p I am currently working as a backend engineer in the ruby ecosystem.
 
 
-
-
-  .flex.gap-4
+  .flex.gap-4.items-center
     a href="https://www.linkedin.com/in/quentin-gaultier-9b995a41/" class="inline-block"
       = image_tag "linkedin.png", class: "w-8 h-8 rounded-full object-cover"
 
     a href="https://github.com/gaultierq" class="inline-block"
       = image_tag "github-mark.png", class: "w-8 h-8 rounded-full object-cover"
+
+    = link_to "Resume", "/resume", class: "inline-block"

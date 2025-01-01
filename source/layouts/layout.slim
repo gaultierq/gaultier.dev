@@ -9,26 +9,12 @@ html
     = stylesheet_link_tag "site"
     = javascript_include_tag "site"
 
-    link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css"
-    script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"
-    script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/bash.min.js"
-    script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/ruby.min.js"
-    script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/sql.min.js"
-    script hljs.highlightAll();
+    = yield_content :head
 
-
-    script src="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.min.js"
-    link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.css"
 
   body
     div class="flex h-screen overflow-hidden"
-      nav class="p-8 w-64 bg-gray-800 overflow-y-disable"
-        = link_to "/index.html" do
-          span class="font-serif text-2xl font-semibold whitespace-nowrap text-white" gaultier.dev
-        div
-          ul class="grid gap-4 mt-8 text-white"
-            li = link_to "About", "/about"
-
+      = partial "fragments/nav"
 
       main class="flex-1 overflow-y-auto p-12 js-toc-content"
         = yield

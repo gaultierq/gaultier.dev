@@ -1,7 +1,7 @@
 ---
-title: "Optimising PostgreSQL Performance: A Journey to Creating a Partial Index in Rails"
+title: "Using Partial Indexes in Rails"
 date: 2024-12-31
-tags: rails postgres
+tags: rails, postgres
 ---
 
 ### Introduction
@@ -184,7 +184,7 @@ FROM random_data;
 ```
 
 
-When we to try to retrieve the abusive which hasn’t been reviewed yet, we notice the query is pretty fast ! It took around 30ms which is not that long.
+When we to try to retrieve the abusive which hasn’t been reviewed yet, we notice the query is pretty fast: 30ms.
 Let’s find out what is going on here, by explaining the query plan.
 It appears that postgres only had to examine only 189k rows.
 
