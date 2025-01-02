@@ -1197,20 +1197,8 @@ h4 {
   position: relative;
 }
 
-.sticky {
-  position: sticky;
-}
-
-.right-4 {
-  right: 1rem;
-}
-
-.top-0 {
-  top: 0px;
-}
-
-.top-4 {
-  top: 1rem;
+.top-8 {
+  top: 2rem;
 }
 
 .z-0 {
@@ -1229,10 +1217,6 @@ h4 {
 .col-span-2 {
   -ms-grid-column-span: 2;
   grid-column: span 2 / span 2;
-}
-
-.float-left {
-  float: left;
 }
 
 .m-auto {
@@ -1341,10 +1325,6 @@ h4 {
   width: 2rem;
 }
 
-.w-\[250px\] {
-  width: 250px;
-}
-
 .w-full {
   width: 100%;
 }
@@ -1413,6 +1393,10 @@ h4 {
 
 .overflow-x-hidden {
   overflow-x: hidden;
+}
+
+.overflow-y-scroll {
+  overflow-y: scroll;
 }
 
 .whitespace-nowrap {
