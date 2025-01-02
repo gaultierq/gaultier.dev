@@ -19,7 +19,8 @@ window.onload = function(){
         // Which headings to grab inside of the contentSelector element.
         headingSelector: 'h1, h2, h3',
         // For headings inside relative or absolute positioned containers within content.
-        hasInnerContainers: true,
+        hasInnerContainers: false,
+        scrollSmooth: false,
     });
 };
 
