@@ -14,7 +14,7 @@
     <link rel="alternate" href="http://blog.url.com/2024/12/31/partial-index.html"/>
     <id>http://blog.url.com/2024/12/31/partial-index.html</id>
     <published>2024-12-31T01:00:00+01:00</published>
-    <updated>2025-01-01T10:56:03+01:00</updated>
+    <updated>2025-01-02T19:20:49+01:00</updated>
     <author>
       <name>Article Author</name>
     </author>
@@ -31,7 +31,7 @@
 Support team complains the list of abusive message they need to review takes a lot of time to load.&lt;/p&gt;
 &lt;/blockquote&gt;
 
-&lt;h3 id="methodology"&gt;Methodology&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;Methodology&lt;/strong&gt;&lt;/p&gt;
 
 &lt;p&gt;My approach to resolve this issue is the same it would be like fixing any performance bug:&lt;/p&gt;
 
@@ -47,25 +47,26 @@ Support team complains the list of abusive message they need to review takes a l
 
 &lt;p&gt;So lets go !&lt;/p&gt;
 
-&lt;h2 id="1-confirm-there-is-a-problem-measure"&gt;1. Confirm there is a problem - measure&lt;/h2&gt;
+&lt;h2 id="confirm"&gt;Confirm&lt;/h2&gt;
 
-&lt;p&gt;Confirming there was a problem was pretty easy. By navigating to the page using the query, I could easily verify that a loader is displayed for 20 seconds.&lt;/p&gt;
+&lt;p&gt;Confirming there was a problem was pretty easy. By navigating to the page using the query, I could easily verify that a loader is displayed for 20 seconds.  &lt;/p&gt;
 
-&lt;p&gt;A quick look at our logs and I could already see that most of the time was spend in sql.&lt;/p&gt;
+&lt;p&gt;And a quick look at our logs and I could already see that most of the time was spend in sql.&lt;/p&gt;
 
-&lt;p&gt;At this point, I decided to add an extra log to production, to narrow down to the exact problematic query. This way, we can measure and verify later that whatever optimization we came up with actually had some effect.&lt;/p&gt;
+&lt;p&gt;At this point, I decided to add an extra log to production, to narrow down to the exact problematic query. This way, we can verify later that whatever optimization we came up with actually had some effect.&lt;/p&gt;
 
-&lt;h2 id="2-finding-a-way-to-make-the-bug-appear-in-local"&gt;2. Finding a way to make the bug appear in local&lt;/h2&gt;
+&lt;h2 id="finding-a-way-to-make-the-bug-appear-in-local"&gt;Finding a way to make the bug appear in local&lt;/h2&gt;
 
-&lt;p&gt;The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the &lt;code&gt;messages&lt;/code&gt; table is approximately 1TB, with several indexes exceeding 100GB each. So, using the production data wasn’t a handy solution,and I had to create some sample data instead.&lt;/p&gt;
+&lt;p&gt;The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the &lt;code&gt;messages&lt;/code&gt; table is approximately 1TB, with several indexes exceeding 100GB each. 
+Using the production data wasn&amp;rsquo;t feasible, I had to create some sample data.&lt;/p&gt;
 
 &lt;h3 id="setting-up-my-local-database"&gt;Setting up my local database&lt;/h3&gt;
 
 &lt;p&gt;In this section I will setup a local postgres and generate some random data using a sql query. I need to generate enough data to have the issue arise.&lt;/p&gt;
 
-&lt;ul&gt;
+&lt;ol&gt;
 &lt;li&gt;setup a test db&lt;/li&gt;
-&lt;/ul&gt;
+&lt;/ol&gt;
 
 &lt;pre&gt;&lt;code class="bash"&gt;docker run --platform linux/arm64 \
   --name postgres17 \
@@ -77,9 +78,9 @@ Support team complains the list of abusive message they need to review takes a l
 
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;ul&gt;
+&lt;ol&gt;
 &lt;li&gt;create the messages table and some indexes&lt;/li&gt;
-&lt;/ul&gt;
+&lt;/ol&gt;
 
 &lt;pre&gt;&lt;code class="sql"&gt;DROP TABLE IF EXISTS messages ;
 
@@ -260,7 +261,7 @@ It appears that postgres only had to examine only 189k rows.&lt;/p&gt;
 
 &lt;p&gt;We reach our goal: generating a dataset that will let the performance issue arise.&lt;/p&gt;
 
-&lt;h2 id="3-analyse-and-experiment"&gt;3. Analyse and experiment&lt;/h2&gt;
+&lt;h2 id="experiment-analyse"&gt;Experiment - analyse&lt;/h2&gt;
 
 &lt;p&gt;In the previous section, we noticed that data scarcity has a significant impact on performance. But what causes this? What’s going on?&lt;/p&gt;
 
@@ -310,7 +311,7 @@ WHERE is_abusive = TRUE or is_spam = TRUE;
 
 &lt;p&gt;Now that we have found an index definition that helped us improving our query, let’s add it to our production database. It’s pretty easy, rails migration DSL can already handle partial indexes :&lt;/p&gt;
 
-&lt;pre&gt;&lt;code class="jsx"&gt;    add_index :messages, [ :id, :created_at ],
+&lt;pre&gt;&lt;code class="rb"&gt;    add_index :messages, [ :id, :created_at ],
               where: &amp;quot;is_abusive = TRUE or is_spam = TRUE&amp;quot;,
               name: &amp;quot;messages_needing_review_idx&amp;quot;,
               algorithm: :concurrently
@@ -318,21 +319,24 @@ WHERE is_abusive = TRUE or is_spam = TRUE;
 
 &lt;p&gt;The all magic happens in the &lt;code&gt;where&lt;/code&gt; clause. The index will be written to only when the filter condition is true.&lt;/p&gt;
 
-&lt;h2 id="measure-consolidate"&gt;&lt;strong&gt;Measure &amp;amp; consolidate&lt;/strong&gt;&lt;/h2&gt;
+&lt;h2 id="measure-consolidate"&gt;Measure &amp;amp; consolidate&lt;/h2&gt;
 
 &lt;p&gt;Running the query in production confirmed our issue was fixed. Using the measure we implemented in the first section was a good confirmation your partial index helped.&lt;/p&gt;
 
-&lt;p&gt;Partial indexes are fragile, and if the condition changes, i.e. the filter condition evolves, the query planner won’t may not be able to use the query planner anymore, and as a result the same bug may re-appear in the future.&lt;/p&gt;
+&lt;p&gt;Partial indexes can be delicate; if the filter condition changes, the query planner might not be able to utilize them effectively. Consequently, this could lead to the same issue resurfacing in the future. I want to ensure that future developers, using this query will consistently hit the index. &lt;/p&gt;
 
-&lt;p&gt;I want to ensure that future developers, using this query will consistently hit the index. I need to find a way to add coupling between the query and the index.&lt;/p&gt;
+&lt;p&gt;I added a spec checking if the query planner keeps using the partial index in the future. Adding a postgres view may be another step torward the coupling of the index with the query.&lt;/p&gt;
 
-&lt;p&gt;TODO: specs&lt;/p&gt;
+&lt;pre&gt;&lt;code class="ruby"&gt;  it &amp;quot;uses the partial index&amp;quot; do
+    expect(query.explain).to include(&amp;#39;Index Scan Backward using messages_needing_review_idx on messages&amp;#39;)
+  end
+&lt;/code&gt;&lt;/pre&gt;
 
 &lt;hr&gt;
 
 &lt;h3 id="conclusion"&gt;&lt;strong&gt;Conclusion&lt;/strong&gt;&lt;/h3&gt;
 
-&lt;p&gt;In summary, creating a partial index on my &lt;code&gt;messages&lt;/code&gt; table was a great and efficient way to reduce that significantly improved query performance. This approach reduced the overhead of indexing while focusing on the most relevant data for my queries.&lt;/p&gt;
+&lt;p&gt;In summary, creating a partial index on my &lt;code&gt;messages&lt;/code&gt; table significantly improved query performance. &lt;/p&gt;
 
 &lt;p&gt;Keep in mind that adding an index  will add write overhead (otherwise we would add indexes for every single query).&lt;/p&gt;
 </content>

@@ -1,4 +1,19 @@
-<!doctype html><html><head><meta charset="utf-8" /><meta content="ie=edge" http-equiv="X-UA-Compatible" /><meta content="width=device-width, initial-scale=1, shrink-to-fit=no" name="viewport" /><title>gaultier.dev</title><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="/feed.xml" /><link href="../../../stylesheets/site.css" rel="stylesheet" /><script src="../../../javascripts/site.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" rel="stylesheet" /><script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/bash.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/ruby.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/sql.min.js"></script><script>hljs.highlightAll();</script><script src="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.min.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.css" rel="stylesheet" /></head><body><div class="flex h-screen"><div class="w-64 flex-none bg-gray-800 overflow-y-disable relative"><nav class="top-8 p-8"><a href="../../../"><span class="font-serif text-2xl font-semibold whitespace-nowrap text-white">gaultier.dev</span></a><div><ul class="grid gap-4 mt-8 text-white"><li><a href="/">Home</a></li><li><a href="/about">About</a></li></ul></div></nav></div><div class="flex-1 flex overflow-hidden "><main class="flex-1 overflow-y-scroll p-12 js-toc-content"><article class="prose lg:prose-xl prose-code:before:hidden prose-code:after:hidden prose-headings:font-serif js-toc-content"><h3 id="introduction">Introduction</h3>
+<!doctype html><html><head><meta charset="utf-8" /><meta content="ie=edge" http-equiv="X-UA-Compatible" /><meta content="width=device-width, initial-scale=1, shrink-to-fit=no" name="viewport" /><title>gaultier.dev</title><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="/feed.xml" /><link href="../../../stylesheets/site.css" rel="stylesheet" /><script type="importmap">
+  {
+  "imports": {
+    "@hotwired/stimulus": "https://unpkg.com/@hotwired/stimulus/dist/stimulus.js",
+    "tocbot": "https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.min.js",
+    "highlight.js": "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/es/highlight.min.js"
+  }
+}
+
+
+</script>
+<script
+  type="module"
+  src="../../../javascripts/site.js"
+></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" rel="stylesheet" /><link href="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.css" rel="stylesheet" /></head><body><nav class="p-12"><a href="../../../"><span class="font-serif text-2xl font-semibold whitespace-nowrap text-gray-800">gaultier.dev</span></a><div><ul class="flex gap-4 mt-8 text-gray-800"><li><a href="/">Home</a></li><li><a href="/about">About</a></li></ul></div></nav><div class="p-12"><article class="prose prose-code:before:hidden prose-code:after:hidden prose-headings:font-serif js-toc-content" data-controller="tocbot highlightjs"><h3 id="introduction">Introduction</h3>
 
 <p>In this post, I will share the insights I gained and the steps I followed to optimize the performance of a PostgreSQL query on a large table by creating a partial index.</p>
 
@@ -11,7 +26,7 @@
 Support team complains the list of abusive message they need to review takes a lot of time to load.</p>
 </blockquote>
 
-<h3 id="methodology">Methodology</h3>
+<p><strong>Methodology</strong></p>
 
 <p>My approach to resolve this issue is the same it would be like fixing any performance bug:</p>
 
@@ -27,25 +42,26 @@ Support team complains the list of abusive message they need to review takes a l
 
 <p>So lets go !</p>
 
-<h2 id="1-confirm-there-is-a-problem-measure">1. Confirm there is a problem - measure</h2>
+<h2 id="confirm">Confirm</h2>
 
-<p>Confirming there was a problem was pretty easy. By navigating to the page using the query, I could easily verify that a loader is displayed for 20 seconds.</p>
+<p>Confirming there was a problem was pretty easy. By navigating to the page using the query, I could easily verify that a loader is displayed for 20 seconds.  </p>
 
-<p>A quick look at our logs and I could already see that most of the time was spend in sql.</p>
+<p>And a quick look at our logs and I could already see that most of the time was spend in sql.</p>
 
-<p>At this point, I decided to add an extra log to production, to narrow down to the exact problematic query. This way, we can measure and verify later that whatever optimization we came up with actually had some effect.</p>
+<p>At this point, I decided to add an extra log to production, to narrow down to the exact problematic query. This way, we can verify later that whatever optimization we came up with actually had some effect.</p>
 
-<h2 id="2-finding-a-way-to-make-the-bug-appear-in-local">2. Finding a way to make the bug appear in local</h2>
+<h2 id="finding-a-way-to-make-the-bug-appear-in-local">Finding a way to make the bug appear in local</h2>
 
-<p>The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the <code>messages</code> table is approximately 1TB, with several indexes exceeding 100GB each. So, using the production data wasn’t a handy solution,and I had to create some sample data instead.</p>
+<p>The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the <code>messages</code> table is approximately 1TB, with several indexes exceeding 100GB each. 
+Using the production data wasn&rsquo;t feasible, I had to create some sample data.</p>
 
 <h3 id="setting-up-my-local-database">Setting up my local database</h3>
 
 <p>In this section I will setup a local postgres and generate some random data using a sql query. I need to generate enough data to have the issue arise.</p>
 
-<ul>
+<ol>
 <li>setup a test db</li>
-</ul>
+</ol>
 
 <pre><code class="bash">docker run --platform linux/arm64 \
   --name postgres17 \
@@ -57,9 +73,9 @@ Support team complains the list of abusive message they need to review takes a l
 
 </code></pre>
 
-<ul>
+<ol>
 <li>create the messages table and some indexes</li>
-</ul>
+</ol>
 
 <pre><code class="sql">DROP TABLE IF EXISTS messages ;
 
@@ -240,7 +256,7 @@ It appears that postgres only had to examine only 189k rows.</p>
 
 <p>We reach our goal: generating a dataset that will let the performance issue arise.</p>
 
-<h2 id="3-analyse-and-experiment">3. Analyse and experiment</h2>
+<h2 id="experiment-analyse">Experiment - analyse</h2>
 
 <p>In the previous section, we noticed that data scarcity has a significant impact on performance. But what causes this? What’s going on?</p>
 
@@ -290,7 +306,7 @@ WHERE is_abusive = TRUE or is_spam = TRUE;
 
 <p>Now that we have found an index definition that helped us improving our query, let’s add it to our production database. It’s pretty easy, rails migration DSL can already handle partial indexes :</p>
 
-<pre><code class="jsx">    add_index :messages, [ :id, :created_at ],
+<pre><code class="rb">    add_index :messages, [ :id, :created_at ],
               where: &quot;is_abusive = TRUE or is_spam = TRUE&quot;,
               name: &quot;messages_needing_review_idx&quot;,
               algorithm: :concurrently
@@ -298,21 +314,24 @@ WHERE is_abusive = TRUE or is_spam = TRUE;
 
 <p>The all magic happens in the <code>where</code> clause. The index will be written to only when the filter condition is true.</p>
 
-<h2 id="measure-consolidate"><strong>Measure &amp; consolidate</strong></h2>
+<h2 id="measure-consolidate">Measure &amp; consolidate</h2>
 
 <p>Running the query in production confirmed our issue was fixed. Using the measure we implemented in the first section was a good confirmation your partial index helped.</p>
 
-<p>Partial indexes are fragile, and if the condition changes, i.e. the filter condition evolves, the query planner won’t may not be able to use the query planner anymore, and as a result the same bug may re-appear in the future.</p>
+<p>Partial indexes can be delicate; if the filter condition changes, the query planner might not be able to utilize them effectively. Consequently, this could lead to the same issue resurfacing in the future. I want to ensure that future developers, using this query will consistently hit the index. </p>
 
-<p>I want to ensure that future developers, using this query will consistently hit the index. I need to find a way to add coupling between the query and the index.</p>
+<p>I added a spec checking if the query planner keeps using the partial index in the future. Adding a postgres view may be another step torward the coupling of the index with the query.</p>
 
-<p>TODO: specs</p>
+<pre><code class="ruby">  it &quot;uses the partial index&quot; do
+    expect(query.explain).to include(&#39;Index Scan Backward using messages_needing_review_idx on messages&#39;)
+  end
+</code></pre>
 
 <hr>
 
 <h3 id="conclusion"><strong>Conclusion</strong></h3>
 
-<p>In summary, creating a partial index on my <code>messages</code> table was a great and efficient way to reduce that significantly improved query performance. This approach reduced the overhead of indexing while focusing on the most relevant data for my queries.</p>
+<p>In summary, creating a partial index on my <code>messages</code> table significantly improved query performance. </p>
 
 <p>Keep in mind that adding an index  will add write overhead (otherwise we would add indexes for every single query).</p>
-</article></main></div><aside class="w-64 flex-none bg-gray-800 p-8 overflow-y-disable"><div class="js-toc text-white"></div></aside></div></body></html>
+</article><aside class="w-1/3 fixed right-0 top-0 bottom-0 bg-gray-800"><div class="h-1/3 bg-gray-800"><div class="js-toc text-white p-8"></div></div></aside></div></body></html>
