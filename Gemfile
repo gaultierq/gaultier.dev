@@ -18,3 +18,5 @@ gem 'wdm', '~> 0.1', platforms: [:mswin, :mingw, :x64_mingw]
 gem "redcarpet", "~> 3.6"
 
 gem "middleman-livereload", "~> 3.4"
+# gem "middleman-importmap", path: "/Users/q/projects/middleman-importmap"
+gem "middleman-importmap"

@@ -1,3 +1,9 @@
+import { Application } from "@hotwired/stimulus";
+import TocbotController from "./controllers/tocbot_controller.js";
+import HighlightContoller from "./controllers/highlightjs_controller.js";
+
+console.debug("starting application");
+
 window.onload = function(){
     const email = document.getElementById('email');
     if (email) {
@@ -10,17 +16,10 @@ window.onload = function(){
         phone.innerText = '+' + '33' + ' 6' + ' 27' + ' 93' + ' 47' + ' 50' ;
         phone.href = 'tel:' + phone.innerText;
     }
-
-    tocbot.init({
-        // Where to render the table of contents.
-        tocSelector: '.js-toc',
-        // Where to grab the headings to build the table of contents.
-        contentSelector: '.js-toc-content',
-        // Which headings to grab inside of the contentSelector element.
-        headingSelector: 'h1, h2, h3',
-        // For headings inside relative or absolute positioned containers within content.
-        hasInnerContainers: false,
-        scrollSmooth: false,
-    });
 };
+
+window.Stimulus = Application.start();
+window.Stimulus.register("tocbot", TocbotController);
+window.Stimulus.register("highlightjs", HighlightContoller);
+
 

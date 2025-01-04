@@ -32,6 +32,11 @@ activate :external_pipeline,
 activate :relative_assets
 set :relative_links, true
 
+activate :importmap do |options|
+  options.entrypoint = "site"
+  options.importmap = "importmap.json"
+  options.use_shim = false
+end
 
 set :markdown_engine, :redcarpet
 set :markdown,
