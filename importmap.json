@@ -1,0 +1,8 @@
+{
+  "imports": {
+    "@hotwired/stimulus": "https://unpkg.com/@hotwired/stimulus/dist/stimulus.js",
+    "tocbot": "https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.min.js",
+    "highlight.js": "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/es/highlight.min.js"
+  }
+}
+

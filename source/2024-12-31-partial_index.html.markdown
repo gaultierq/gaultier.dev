@@ -15,7 +15,7 @@ I was working on improving the speed of a query while keeping my database lightw
 > Let’s assume we are running a messaging app where `users` can send messages to each others. On some occasions, our AI detection will flag some flags are `abusive` and our support team need to review these messages.
 > Support team complains the list of abusive message they need to review takes a lot of time to load.
 
-### Methodology
+**Methodology**
 
 My approach to resolve this issue is the same it would be like fixing any performance bug:
 
@@ -29,23 +29,24 @@ The greater difficulty in our journey will lie in step 2.  Fixing a performance 
 
 So lets go !
 
-## 1. Confirm there is a problem - measure
+## Confirm 
 
-Confirming there was a problem was pretty easy. By navigating to the page using the query, I could easily verify that a loader is displayed for 20 seconds.
+Confirming there was a problem was pretty easy. By navigating to the page using the query, I could easily verify that a loader is displayed for 20 seconds.  
 
-A quick look at our logs and I could already see that most of the time was spend in sql.
+And a quick look at our logs and I could already see that most of the time was spend in sql.
 
-At this point, I decided to add an extra log to production, to narrow down to the exact problematic query. This way, we can measure and verify later that whatever optimization we came up with actually had some effect.
+At this point, I decided to add an extra log to production, to narrow down to the exact problematic query. This way, we can verify later that whatever optimization we came up with actually had some effect.
 
-## 2. Finding a way to make the bug appear in local
+## Finding a way to make the bug appear in local
 
-The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the `messages` table is approximately 1TB, with several indexes exceeding 100GB each. So, using the production data wasn’t a handy solution,and I had to create some sample data instead.
+The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the `messages` table is approximately 1TB, with several indexes exceeding 100GB each. 
+Using the production data wasn't feasible, I had to create some sample data.
 
 ### Setting up my local database
 
 In this section I will setup a local postgres and generate some random data using a sql query. I need to generate enough data to have the issue arise.
 
-- setup a test db
+1. setup a test db
 
 ```bash
 docker run --platform linux/arm64 \
@@ -58,7 +59,7 @@ docker run --platform linux/arm64 \
 
 ```
 
-- create the messages table and some indexes
+2. create the messages table and some indexes
 
 ```sql
 DROP TABLE IF EXISTS messages ;
@@ -241,7 +242,7 @@ And now, running the query takes a lot more time: around 250ms. And remember, my
 
 We reach our goal: generating a dataset that will let the performance issue arise.
 
-## 3. Analyse and experiment
+## Experiment - analyse 
 
 In the previous section, we noticed that data scarcity has a significant impact on performance. But what causes this? What’s going on?
 
@@ -293,7 +294,7 @@ It look like we have a serious candidate  for our performance issue.
 
 Now that we have found an index definition that helped us improving our query, let’s add it to our production database. It’s pretty easy, rails migration DSL can already handle partial indexes :
 
-```jsx
+```rb
     add_index :messages, [ :id, :created_at ],
               where: "is_abusive = TRUE or is_spam = TRUE",
               name: "messages_needing_review_idx",
@@ -302,20 +303,24 @@ Now that we have found an index definition that helped us improving our query, l
 
 The all magic happens in the `where` clause. The index will be written to only when the filter condition is true.
 
-## **Measure & consolidate**
+## Measure & consolidate
 
 Running the query in production confirmed our issue was fixed. Using the measure we implemented in the first section was a good confirmation your partial index helped.
 
-Partial indexes are fragile, and if the condition changes, i.e. the filter condition evolves, the query planner won’t may not be able to use the query planner anymore, and as a result the same bug may re-appear in the future.
+Partial indexes can be delicate; if the filter condition changes, the query planner might not be able to utilize them effectively. Consequently, this could lead to the same issue resurfacing in the future. I want to ensure that future developers, using this query will consistently hit the index. 
 
-I want to ensure that future developers, using this query will consistently hit the index. I need to find a way to add coupling between the query and the index.
+I added a spec checking if the query planner keeps using the partial index in the future. Adding a postgres view may be another step torward the coupling of the index with the query.
 
-TODO: specs
+```ruby
+  it "uses the partial index" do
+    expect(query.explain).to include('Index Scan Backward using messages_needing_review_idx on messages')
+  end
+```
 
 ---
 
 ### **Conclusion**
 
-In summary, creating a partial index on my `messages` table was a great and efficient way to reduce that significantly improved query performance. This approach reduced the overhead of indexing while focusing on the most relevant data for my queries.
+In summary, creating a partial index on my `messages` table significantly improved query performance. 
 
 Keep in mind that adding an index  will add write overhead (otherwise we would add indexes for every single query).

@@ -86,6 +86,8 @@ GEM
       webrick
     middleman-gh-pages (0.4.1)
       rake (> 0.9.3)
+    middleman-importmap (0.6.0)
+      middleman-core (>= 4.4.2)
     middleman-livereload (3.4.7)
       em-websocket (~> 0.5.1)
       middleman-core (>= 3.3)
@@ -136,6 +138,7 @@ DEPENDENCIES
   middleman-autoprefixer (~> 3.0)
   middleman-blog (~> 4.0)
   middleman-gh-pages
+  middleman-importmap
   middleman-livereload (~> 3.4)
   redcarpet (~> 3.6)
   slim (~> 4.0)

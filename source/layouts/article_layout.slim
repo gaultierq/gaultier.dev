@@ -1,42 +1,10 @@
-| <!doctype html>
-html
-  head
-    meta[charset="utf-8"]
-    meta[http-equiv="X-UA-Compatible" content="ie=edge"]
-    meta[name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"]
-    title = "gaultier.dev"
-    = feed_tag :atom, "#{blog.options.prefix.to_s}/feed.xml", title: "Atom Feed"
-    = stylesheet_link_tag "site"
-    = javascript_include_tag "site"
-
-    link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css"
-    script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"
-    script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/bash.min.js"
-    script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/ruby.min.js"
-    script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/sql.min.js"
-    script hljs.highlightAll();
-
-    script src="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.min.js"
-    link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.css"
 
 
-  body
-    div class="flex h-screen"
-      div class="w-64 flex-none bg-gray-800 overflow-y-disable relative"
-        nav class="top-8 p-8"
-          = link_to "/index.html" do
-            span class="font-serif text-2xl font-semibold whitespace-nowrap text-white" gaultier.dev
-          div
-            ul class="grid gap-4 mt-8 text-white"
-              li = link_to "Home", "/"
-              li = link_to "About", "/about"
+= wrap_layout :layout do
+  article class="prose prose-code:before:hidden prose-code:after:hidden prose-headings:font-serif js-toc-content" data-controller="tocbot highlightjs"
+    = yield
 
-      div class="flex-1 flex overflow-hidden "
-        main class="flex-1 overflow-y-scroll p-12 js-toc-content"
-          article class="prose lg:prose-xl prose-code:before:hidden prose-code:after:hidden prose-headings:font-serif js-toc-content"
-            = yield
-
-
-      aside class="w-64 flex-none bg-gray-800 p-8 overflow-y-disable"
-        div class="js-toc text-white"
+  aside class="w-1/3 fixed right-0 top-0 bottom-0 bg-gray-800"
+    div class="h-1/3 bg-gray-800"
+      div class="js-toc text-white p-8"
 

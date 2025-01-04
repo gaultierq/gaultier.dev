@@ -4,9 +4,10 @@
   "main": "index.js",
   "author": "Quentin Gaultier <quentin.gaultier@gmail.com>",
   "license": "MIT",
-  "dependencies": {},
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.15",
-    "tailwindcss": "^3.4.3"
+    "highlight.js": "^11.11.1",
+    "tailwindcss": "^3.4.3",
+    "tocbot": "^4.32.2"
   }
 }
