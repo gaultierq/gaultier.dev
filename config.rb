@@ -38,11 +38,26 @@ activate :importmap do |options|
   options.use_shim = false
 end
 
+# set :markdown_engine, :redcarpet
+# set :markdown,
+#     fenced_code_blocks: true,
+#     smartypants: true,
+#     with_toc_data: true  # <-- This adds id attributes to headings
+
+require_relative "lib/my_custom_renderer"
+#
 set :markdown_engine, :redcarpet
 set :markdown,
+    renderer: MyCustomRenderer.new(
+      with_toc_data: true,
+      hard_wrap: false,
+      prettify: true,
+      xhtml: true
+    ),
     fenced_code_blocks: true,
+    autolink: true,
     smartypants: true,
-    with_toc_data: true  # <-- This adds id attributes to headings
+    no_intra_emphasis: true
 
 # With alternative layout
 # page '/path/to/file.html', layout: 'other_layout'
