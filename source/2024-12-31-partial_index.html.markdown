@@ -15,6 +15,8 @@ I was working on improving the speed of a query while keeping my database lightw
 > Let’s assume we are running a messaging app where `users` can send messages to each others. On some occasions, our AI detection will flag some flags are `abusive` and our support team need to review these messages.
 > Support team complains the list of abusive message they need to review takes a lot of time to load.
 
+
+
 **Methodology**
 
 My approach to resolve this issue is the same it would be like fixing any performance bug:
@@ -46,7 +48,11 @@ Using the production data wasn't feasible, I had to create some sample data.
 
 In this section I will setup a local postgres and generate some random data using a sql query. I need to generate enough data to have the issue arise.
 
+[!trigger:docker_postgres_17]
 1. setup a test db
+[/!trigger]
+
+[!note:docker_postgres_17]
 
 ```bash
 docker run --platform linux/arm64 \
@@ -58,6 +64,11 @@ docker run --platform linux/arm64 \
   -d postgres:17
 
 ```
+
+[/!note]
+
+
+
 
 2. create the messages table and some indexes
 
