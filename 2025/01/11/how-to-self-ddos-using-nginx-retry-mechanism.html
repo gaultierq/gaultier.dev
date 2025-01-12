@@ -1,0 +1,93 @@
+<!doctype html><html><head><meta charset="utf-8" /><meta content="ie=edge" http-equiv="X-UA-Compatible" /><meta content="width=device-width, initial-scale=1, shrink-to-fit=no" name="viewport" /><title>gaultier.dev</title><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="/feed.xml" /><link href="../../../stylesheets/site.css" rel="stylesheet" /><script type="importmap">
+  {
+  "imports": {
+    "@hotwired/stimulus": "https://unpkg.com/@hotwired/stimulus/dist/stimulus.js",
+    "tocbot": "https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.min.js",
+    "highlight.js": "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/es/highlight.min.js"
+  }
+}
+
+
+</script>
+<script
+  type="module"
+  src="../../../javascripts/site.js"
+></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" rel="stylesheet" /><link href="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.css" rel="stylesheet" /></head><body><nav class="p-12"><a href="../../../"><span class="font-serif text-2xl font-semibold whitespace-nowrap text-gray-800">gaultier.dev</span></a><div><ul class="flex gap-4 mt-8 text-gray-800"><li><a href="/">Home</a></li><li><a href="/about">About</a></li></ul></div></nav><div class="p-12"><article class="prose prose-code:before:hidden prose-code:after:hidden prose-headings:font-serif js-toc-content" data-controller="tocbot highlightjs"><p>Last week, I encountered an issue that caused a huge CPU spike on our backend system leading to congestion and potentially unhappy users. 
+While the system stayed operational, this incident highlighted how a small configuration detail can significantly impact performance. 
+Here&#39;s a breakdown of what happened. </p>
+
+<h2 id="the-incident">The Incident</h2>
+
+<p>Our system operates on a Kubernetes cluster and was functioning normally until alerts flagged 100% CPU usage on the node hosting the database.</p>
+
+<p>The team quickly identified long-running requests executing heavy SQL calculations. These requests were triggered when customers generated yearly reports for their dashboards.</p>
+
+<p>Ideally, the system should delegate such intensive calculations to background jobs, allowing the requests to return immediately. 
+However, the implementation was building the report synchronously (within the request lifecycle).</p>
+
+<p>Since generating a report can take up to 40 minutes (a reasonable processing time for this task), users often assume the system has stalled. 
+In response, they refresh the page, unintentionally triggering new requests. Over time, these repeated requests overwhelmed the system, exhausting its resources.</p>
+
+<h2 id="the-investigation">The investigation</h2>
+
+<p>To understand the issue, I tested it myself by generating a new yearly report. After about 3 minutes, my browser encountered a 504 proxy timeout error.
+Curious about whree this timeout was configured, I dug into our Nginx controller settings and found: </p>
+
+<pre><code class="prettyprint">proxy_read_timeout 60s;
+proxy_next_upstream_tries 3;
+</code></pre>
+
+<p>This behavior was eye-opening! When a user requests a report, Nginx forwards the request to our Rails application, 
+which then generates lots of database queries. If the backend doesn’t respond within 60 seconds, Nginx retries the request—up to three times.</p>
+
+<p>In essence, our own system (Nginx) was resending requests every minute while (understandably) frustrated users were refreshing the page, sending additional requests. 
+This compounded the problem, overwhelming the system from both internal retries and external user actions.</p>
+
+<p>While the 40-minute request time is undeniably a design flaw that requires immediate attention, 
+the <strong>ingress controller&#39;s retry logic unintentionally magnified the issue by tripling the load</strong>. </p>
+
+<p>This made it even harder for our team to manage the situation effectively.</p>
+
+<h2 id="the-fix">The Fix</h2>
+
+<p>The team quickly agreed that report generation should be handled asynchronously using a background job. 
+However, implementing this solution would take several days, and we needed an immediate fix to prevent another CPU spike. 
+To mitigate the issue temporarily, we decided to deactivate the Nginx retry mechanism. 
+While this wouldn’t fully resolve the problem, it would reduce the load by two-thirds.</p>
+
+<p>Rather than diving into the documentation myself, I opted to consult ChatGPT for guidance. 
+The AI confidently suggested setting <code class="prettyprint">proxy_next_upstream_tries 0;</code> to disable the retry mechanism entirely. 
+Sounded simple enough, right?</p>
+
+<p>I updated the ingress annotations accordingly and waited for the Nginx pods to reload their configuration. 
+Then I ran a new test, expecting to see the request fail with a 504 error after 60 seconds. </p>
+
+<p>But to my surprise, the request didn’t time out. It continued running for 1, 2, 3, 4 minutes... 
+Meanwhile, the database load began to rise again.</p>
+
+<p>Realizing something was wrong, I quickly rolled back the Helm chart and deleted all the web pods, which restored the CPU usage to normal. 
+Disaster (barely) averted.</p>
+
+<p>I went back to the Nginx documentation and finally read the relevant section properly. Here&#39;s what I found:</p>
+
+<pre><code class="prettyprint">Limits the time during which a request can be passed to the next server. The 0 value turns off this limitation.
+</code></pre>
+
+<p>That’s when it hit me: by setting <code class="prettyprint">proxy_next_upstream_tries</code> to <code class="prettyprint">0</code>, I had configured Nginx to retry requests indefinitely! 
+Every 60 seconds, Nginx would resend the request to our backend, compounding the problem exponentially: a single user’s request could have overwhelmed our resources entirely.</p>
+
+<p>The fix? I updated the configuration to set <code class="prettyprint">proxy_next_upstream_tries</code> to <code class="prettyprint">1</code>, ensuring that Nginx would only try the request once (no retry). </p>
+
+<p>After 60 seconds, the request did fail gracefully with a 504 error, preventing the backend from being overwhelmed.</p>
+
+<hr/>
+
+<h3 id="key-learnings">Key Learnings:</h3>
+
+<ol>
+<li>Double check ChatGPT answers for critical config - RTFD.</li>
+<li>Test configuration updates in a staging environment before deploying them to production.</li>
+<li>Be cautious with retry mechanisms in systems handling long-running or resource-intensive requests.</li>
+</ol>
+</article><aside class="w-1/3 fixed right-0 top-0 bottom-0 bg-gray-800"><div class="h-1/3 bg-gray-800"><div class="js-toc text-white p-8"></div></div></aside></div></body></html>

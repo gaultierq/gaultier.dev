@@ -5,16 +5,104 @@
   <id>http://blog.url.com/</id>
   <link href="http://blog.url.com/"/>
   <link href="http://blog.url.com/feed.xml" rel="self"/>
-  <updated>2024-12-31T01:00:00+01:00</updated>
+  <updated>2025-01-11T18:59:00+01:00</updated>
   <author>
     <name>Blog Author</name>
   </author>
+  <entry>
+    <title>Self DDOS-ing with long-running requests and Nginx</title>
+    <link rel="alternate" href="http://blog.url.com/2025/01/11/how-to-self-ddos-using-nginx-retry-mechanism.html"/>
+    <id>http://blog.url.com/2025/01/11/how-to-self-ddos-using-nginx-retry-mechanism.html</id>
+    <published>2025-01-11T18:59:00+01:00</published>
+    <updated>2025-01-12T12:58:03+01:00</updated>
+    <author>
+      <name>Article Author</name>
+    </author>
+    <content type="html">&lt;p&gt;Last week, I encountered an issue that caused a huge CPU spike on our backend system leading to congestion and potentially unhappy users. 
+While the system stayed operational, this incident highlighted how a small configuration detail can significantly impact performance. 
+Here&amp;#39;s a breakdown of what happened. &lt;/p&gt;
+
+&lt;h2 id="the-incident"&gt;The Incident&lt;/h2&gt;
+
+&lt;p&gt;Our system operates on a Kubernetes cluster and was functioning normally until alerts flagged 100% CPU usage on the node hosting the database.&lt;/p&gt;
+
+&lt;p&gt;The team quickly identified long-running requests executing heavy SQL calculations. These requests were triggered when customers generated yearly reports for their dashboards.&lt;/p&gt;
+
+&lt;p&gt;Ideally, the system should delegate such intensive calculations to background jobs, allowing the requests to return immediately. 
+However, the implementation was building the report synchronously (within the request lifecycle).&lt;/p&gt;
+
+&lt;p&gt;Since generating a report can take up to 40 minutes (a reasonable processing time for this task), users often assume the system has stalled. 
+In response, they refresh the page, unintentionally triggering new requests. Over time, these repeated requests overwhelmed the system, exhausting its resources.&lt;/p&gt;
+
+&lt;h2 id="the-investigation"&gt;The investigation&lt;/h2&gt;
+
+&lt;p&gt;To understand the issue, I tested it myself by generating a new yearly report. After about 3 minutes, my browser encountered a 504 proxy timeout error.
+Curious about whree this timeout was configured, I dug into our Nginx controller settings and found: &lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="prettyprint"&gt;proxy_read_timeout 60s;
+proxy_next_upstream_tries 3;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This behavior was eye-opening! When a user requests a report, Nginx forwards the request to our Rails application, 
+which then generates lots of database queries. If the backend doesn’t respond within 60 seconds, Nginx retries the request—up to three times.&lt;/p&gt;
+
+&lt;p&gt;In essence, our own system (Nginx) was resending requests every minute while (understandably) frustrated users were refreshing the page, sending additional requests. 
+This compounded the problem, overwhelming the system from both internal retries and external user actions.&lt;/p&gt;
+
+&lt;p&gt;While the 40-minute request time is undeniably a design flaw that requires immediate attention, 
+the &lt;strong&gt;ingress controller&amp;#39;s retry logic unintentionally magnified the issue by tripling the load&lt;/strong&gt;. &lt;/p&gt;
+
+&lt;p&gt;This made it even harder for our team to manage the situation effectively.&lt;/p&gt;
+
+&lt;h2 id="the-fix"&gt;The Fix&lt;/h2&gt;
+
+&lt;p&gt;The team quickly agreed that report generation should be handled asynchronously using a background job. 
+However, implementing this solution would take several days, and we needed an immediate fix to prevent another CPU spike. 
+To mitigate the issue temporarily, we decided to deactivate the Nginx retry mechanism. 
+While this wouldn’t fully resolve the problem, it would reduce the load by two-thirds.&lt;/p&gt;
+
+&lt;p&gt;Rather than diving into the documentation myself, I opted to consult ChatGPT for guidance. 
+The AI confidently suggested setting &lt;code class="prettyprint"&gt;proxy_next_upstream_tries 0;&lt;/code&gt; to disable the retry mechanism entirely. 
+Sounded simple enough, right?&lt;/p&gt;
+
+&lt;p&gt;I updated the ingress annotations accordingly and waited for the Nginx pods to reload their configuration. 
+Then I ran a new test, expecting to see the request fail with a 504 error after 60 seconds. &lt;/p&gt;
+
+&lt;p&gt;But to my surprise, the request didn’t time out. It continued running for 1, 2, 3, 4 minutes... 
+Meanwhile, the database load began to rise again.&lt;/p&gt;
+
+&lt;p&gt;Realizing something was wrong, I quickly rolled back the Helm chart and deleted all the web pods, which restored the CPU usage to normal. 
+Disaster (barely) averted.&lt;/p&gt;
+
+&lt;p&gt;I went back to the Nginx documentation and finally read the relevant section properly. Here&amp;#39;s what I found:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="prettyprint"&gt;Limits the time during which a request can be passed to the next server. The 0 value turns off this limitation.
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;That’s when it hit me: by setting &lt;code class="prettyprint"&gt;proxy_next_upstream_tries&lt;/code&gt; to &lt;code class="prettyprint"&gt;0&lt;/code&gt;, I had configured Nginx to retry requests indefinitely! 
+Every 60 seconds, Nginx would resend the request to our backend, compounding the problem exponentially: a single user’s request could have overwhelmed our resources entirely.&lt;/p&gt;
+
+&lt;p&gt;The fix? I updated the configuration to set &lt;code class="prettyprint"&gt;proxy_next_upstream_tries&lt;/code&gt; to &lt;code class="prettyprint"&gt;1&lt;/code&gt;, ensuring that Nginx would only try the request once (no retry). &lt;/p&gt;
+
+&lt;p&gt;After 60 seconds, the request did fail gracefully with a 504 error, preventing the backend from being overwhelmed.&lt;/p&gt;
+
+&lt;hr/&gt;
+
+&lt;h3 id="key-learnings"&gt;Key Learnings:&lt;/h3&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Double check ChatGPT answers for critical config - RTFD.&lt;/li&gt;
+&lt;li&gt;Test configuration updates in a staging environment before deploying them to production.&lt;/li&gt;
+&lt;li&gt;Be cautious with retry mechanisms in systems handling long-running or resource-intensive requests.&lt;/li&gt;
+&lt;/ol&gt;
+</content>
+  </entry>
   <entry>
     <title>Using Partial Indexes in Rails</title>
     <link rel="alternate" href="http://blog.url.com/2024/12/31/partial-index.html"/>
     <id>http://blog.url.com/2024/12/31/partial-index.html</id>
     <published>2024-12-31T01:00:00+01:00</published>
-    <updated>2025-01-02T19:20:49+01:00</updated>
+    <updated>2025-01-06T09:23:06+01:00</updated>
     <author>
       <name>Article Author</name>
     </author>
@@ -27,7 +115,7 @@
 &lt;h3 id="use-case"&gt;Use case&lt;/h3&gt;
 
 &lt;blockquote&gt;
-&lt;p&gt;Let’s assume we are running a messaging app where &lt;code&gt;users&lt;/code&gt; can send messages to each others. On some occasions, our AI detection will flag some flags are &lt;code&gt;abusive&lt;/code&gt; and our support team need to review these messages.
+&lt;p&gt;Let’s assume we are running a messaging app where &lt;code class="prettyprint"&gt;users&lt;/code&gt; can send messages to each others. On some occasions, our AI detection will flag some flags are &lt;code class="prettyprint"&gt;abusive&lt;/code&gt; and our support team need to review these messages.
 Support team complains the list of abusive message they need to review takes a lot of time to load.&lt;/p&gt;
 &lt;/blockquote&gt;
 
@@ -57,18 +145,19 @@ Support team complains the list of abusive message they need to review takes a l
 
 &lt;h2 id="finding-a-way-to-make-the-bug-appear-in-local"&gt;Finding a way to make the bug appear in local&lt;/h2&gt;
 
-&lt;p&gt;The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the &lt;code&gt;messages&lt;/code&gt; table is approximately 1TB, with several indexes exceeding 100GB each. 
-Using the production data wasn&amp;rsquo;t feasible, I had to create some sample data.&lt;/p&gt;
+&lt;p&gt;The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the &lt;code class="prettyprint"&gt;messages&lt;/code&gt; table is approximately 1TB, with several indexes exceeding 100GB each. 
+Using the production data wasn&amp;#39;t feasible, I had to create some sample data.&lt;/p&gt;
 
 &lt;h3 id="setting-up-my-local-database"&gt;Setting up my local database&lt;/h3&gt;
 
 &lt;p&gt;In this section I will setup a local postgres and generate some random data using a sql query. I need to generate enough data to have the issue arise.&lt;/p&gt;
 
-&lt;ol&gt;
+&lt;div class='bg-red-100 note' id='docker_postgres_17'&gt;&lt;ol&gt;
 &lt;li&gt;setup a test db&lt;/li&gt;
 &lt;/ol&gt;
+&lt;/div&gt;
 
-&lt;pre&gt;&lt;code class="bash"&gt;docker run --platform linux/arm64 \
+&lt;div class='bg-blue-100 note' id='docker_postgres_17'&gt;&lt;pre&gt;&lt;code class="prettyprint lang-bash"&gt;docker run --platform linux/arm64 \
   --name postgres17 \
   -e POSTGRES_USER=postgres \
   -e POSTGRES_DB=partial_blog \
@@ -77,12 +166,13 @@ Using the production data wasn&amp;rsquo;t feasible, I had to create some sample
   -d postgres:17
 
 &lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
 
 &lt;ol&gt;
 &lt;li&gt;create the messages table and some indexes&lt;/li&gt;
 &lt;/ol&gt;
 
-&lt;pre&gt;&lt;code class="sql"&gt;DROP TABLE IF EXISTS messages ;
+&lt;pre&gt;&lt;code class="prettyprint lang-sql"&gt;DROP TABLE IF EXISTS messages ;
 
 CREATE TABLE messages (
     id SERIAL PRIMARY KEY,           
@@ -101,24 +191,24 @@ CREATE INDEX idx_messages_author_created_at ON messages (author_id, created_at);
 CREATE INDEX idx_messages_abusive_reviewed ON messages (is_abusive, is_spam, is_reviewed, is_archived);
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;Now that my postgres db is up an running, it’s time to populate my &lt;code&gt;messages&lt;/code&gt; table with some data. To do that we will use a sql script, that will generate 10 millions messages.&lt;/p&gt;
+&lt;p&gt;Now that my postgres db is up an running, it’s time to populate my &lt;code class="prettyprint"&gt;messages&lt;/code&gt; table with some data. To do that we will use a sql script, that will generate 10 millions messages.&lt;/p&gt;
 
 &lt;p&gt;I decided to generate messages with the following spread :&lt;/p&gt;
 
 &lt;h3 id="dataset-configuration-1"&gt;dataset configuration #1&lt;/h3&gt;
 
-&lt;p&gt;&lt;code&gt;is_abusive&lt;/code&gt; : 1 in 10,000&lt;/p&gt;
+&lt;p&gt;&lt;code class="prettyprint"&gt;is_abusive&lt;/code&gt; : 1 in 10,000&lt;/p&gt;
 
-&lt;p&gt;&lt;code&gt;is_spam&lt;/code&gt; : 1 in 100,000&lt;/p&gt;
+&lt;p&gt;&lt;code class="prettyprint"&gt;is_spam&lt;/code&gt; : 1 in 100,000&lt;/p&gt;
 
-&lt;p&gt;&lt;code&gt;is_archived&lt;/code&gt; : 20%&lt;/p&gt;
+&lt;p&gt;&lt;code class="prettyprint"&gt;is_archived&lt;/code&gt; : 20%&lt;/p&gt;
 
-&lt;p&gt;&lt;code&gt;is_reviewed&lt;/code&gt; : 50% of those needing review&lt;/p&gt;
+&lt;p&gt;&lt;code class="prettyprint"&gt;is_reviewed&lt;/code&gt; : 50% of those needing review&lt;/p&gt;
 
 &lt;ul&gt;
 &lt;li&gt;&lt;p&gt;sql&lt;/p&gt;
 
-&lt;pre&gt;&lt;code class="sql"&gt;TRUNCATE messages;
+&lt;pre&gt;&lt;code class="prettyprint lang-sql"&gt;TRUNCATE messages;
 
 WITH existing_max_id AS (
     SELECT
@@ -167,7 +257,7 @@ random_data AS (
 
 &lt;p&gt;My first approach was pretty naive:&lt;/p&gt;
 
-&lt;pre&gt;&lt;code class="sql"&gt;WITH existing_max_id AS (
+&lt;pre&gt;&lt;code class="prettyprint lang-sql"&gt;WITH existing_max_id AS (
     SELECT COALESCE(MAX(id), 0) AS max_id FROM messages 
 ),
 random_data AS (
@@ -220,7 +310,7 @@ It appears that postgres only had to examine only 189k rows.&lt;/p&gt;
 &lt;li&gt;Query plan when there is  1 abusive message every  1 million and 20 millions messages ⇒ 400ms&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;pre&gt;&lt;code class="bash"&gt;
+&lt;pre&gt;&lt;code class="prettyprint lang-bash"&gt;
     Limit  (cost=371054.44..371054.45 rows=1 width=80) (actual time=368.576..370.384 rows=5 loops=1)
       Output: id, created_at, updated_at, author_id, content, abusive, reviewed
       Buffers: shared hit=192 read=286529
@@ -267,7 +357,7 @@ It appears that postgres only had to examine only 189k rows.&lt;/p&gt;
 
 &lt;p&gt;In both scenarios, the query planner is not using any index, leading it to examine each row sequentially until it identifies 100 rows that meet our filter criteria. Once it finds those 100 rows, it stops and returns the results.&lt;/p&gt;
 
-&lt;p&gt;In the first scenario, where the sample data contains a high number of &lt;code&gt;abusive = TRUE&lt;/code&gt; rows, PostgreSQL can still locate the relevant rows relatively quickly, albeit inefficiently.&lt;/p&gt;
+&lt;p&gt;In the first scenario, where the sample data contains a high number of &lt;code class="prettyprint"&gt;abusive = TRUE&lt;/code&gt; rows, PostgreSQL can still locate the relevant rows relatively quickly, albeit inefficiently.&lt;/p&gt;
 
 &lt;p&gt;On the opposite, in the second scenario, where there is only one matching row for every million, PostgreSQL must scan nearly the entire database to retrieve just five rows, which takes considerably more time.&lt;/p&gt;
 
@@ -287,37 +377,37 @@ It appears that postgres only had to examine only 189k rows.&lt;/p&gt;
 
 &lt;p&gt;A partial index is a specialised index that will only index some rows matching a filter.&lt;/p&gt;
 
-&lt;pre&gt;&lt;code class="sql"&gt;CREATE INDEX messages_needing_review_idx
+&lt;pre&gt;&lt;code class="prettyprint lang-sql"&gt;CREATE INDEX messages_needing_review_idx
 ON messages (id, created_at)
 WHERE is_abusive = TRUE or is_spam = TRUE;
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;This index focuses only on rows which are &lt;code&gt;is_abusive = TRUE&lt;/code&gt; or &lt;code&gt;is_spam = TRUE&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;This index focuses only on rows which are &lt;code class="prettyprint"&gt;is_abusive = TRUE&lt;/code&gt; or &lt;code class="prettyprint"&gt;is_spam = TRUE&lt;/code&gt;&lt;/p&gt;
 
 &lt;p&gt;The filtering is performed at “write time” when new rows are inserted / updated / deleted.&lt;/p&gt;
 
-&lt;p&gt;Now , the query is executed in &lt;code&gt;5ms&lt;/code&gt;  which is  30x faster than the initial query.&lt;/p&gt;
+&lt;p&gt;Now , the query is executed in &lt;code class="prettyprint"&gt;5ms&lt;/code&gt;  which is  30x faster than the initial query.&lt;/p&gt;
 
 &lt;p&gt;It look like we have a serious candidate  for our performance issue.&lt;/p&gt;
 
-&lt;hr&gt;
+&lt;hr/&gt;
 
-&lt;pre&gt;&lt;code class="sql"&gt;-&amp;gt;  Index Scan using messages_needing_review_idx on messages  (cost=0.28..1798.15 rows=802 width=83)
+&lt;pre&gt;&lt;code class="prettyprint lang-sql"&gt;-&amp;gt;  Index Scan using messages_needing_review_idx on messages  (cost=0.28..1798.15 rows=802 width=83)
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;hr&gt;
+&lt;hr/&gt;
 
 &lt;h3 id="implementation-in-rails"&gt;Implementation in rails&lt;/h3&gt;
 
 &lt;p&gt;Now that we have found an index definition that helped us improving our query, let’s add it to our production database. It’s pretty easy, rails migration DSL can already handle partial indexes :&lt;/p&gt;
 
-&lt;pre&gt;&lt;code class="rb"&gt;    add_index :messages, [ :id, :created_at ],
+&lt;pre&gt;&lt;code class="prettyprint lang-rb"&gt;    add_index :messages, [ :id, :created_at ],
               where: &amp;quot;is_abusive = TRUE or is_spam = TRUE&amp;quot;,
               name: &amp;quot;messages_needing_review_idx&amp;quot;,
               algorithm: :concurrently
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;The all magic happens in the &lt;code&gt;where&lt;/code&gt; clause. The index will be written to only when the filter condition is true.&lt;/p&gt;
+&lt;p&gt;The all magic happens in the &lt;code class="prettyprint"&gt;where&lt;/code&gt; clause. The index will be written to only when the filter condition is true.&lt;/p&gt;
 
 &lt;h2 id="measure-consolidate"&gt;Measure &amp;amp; consolidate&lt;/h2&gt;
 
@@ -327,16 +417,16 @@ WHERE is_abusive = TRUE or is_spam = TRUE;
 
 &lt;p&gt;I added a spec checking if the query planner keeps using the partial index in the future. Adding a postgres view may be another step torward the coupling of the index with the query.&lt;/p&gt;
 
-&lt;pre&gt;&lt;code class="ruby"&gt;  it &amp;quot;uses the partial index&amp;quot; do
+&lt;pre&gt;&lt;code class="prettyprint lang-ruby"&gt;  it &amp;quot;uses the partial index&amp;quot; do
     expect(query.explain).to include(&amp;#39;Index Scan Backward using messages_needing_review_idx on messages&amp;#39;)
   end
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;hr&gt;
+&lt;hr/&gt;
 
 &lt;h3 id="conclusion"&gt;&lt;strong&gt;Conclusion&lt;/strong&gt;&lt;/h3&gt;
 
-&lt;p&gt;In summary, creating a partial index on my &lt;code&gt;messages&lt;/code&gt; table significantly improved query performance. &lt;/p&gt;
+&lt;p&gt;In summary, creating a partial index on my &lt;code class="prettyprint"&gt;messages&lt;/code&gt; table significantly improved query performance. &lt;/p&gt;
 
 &lt;p&gt;Keep in mind that adding an index  will add write overhead (otherwise we would add indexes for every single query).&lt;/p&gt;
 </content>
