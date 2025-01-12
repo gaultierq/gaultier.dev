@@ -14,7 +14,7 @@
     <link rel="alternate" href="http://blog.url.com/2025/01/11/how-to-self-ddos-using-nginx-retry-mechanism.html"/>
     <id>http://blog.url.com/2025/01/11/how-to-self-ddos-using-nginx-retry-mechanism.html</id>
     <published>2025-01-11T18:59:00+01:00</published>
-    <updated>2025-01-12T12:58:03+01:00</updated>
+    <updated>2025-01-12T12:59:57+01:00</updated>
     <author>
       <name>Article Author</name>
     </author>
@@ -91,7 +91,7 @@ Every 60 seconds, Nginx would resend the request to our backend, compounding the
 &lt;h3 id="key-learnings"&gt;Key Learnings:&lt;/h3&gt;
 
 &lt;ol&gt;
-&lt;li&gt;Double check ChatGPT answers for critical config - RTFD.&lt;/li&gt;
+&lt;li&gt;Double check ChatGPT answers for critical config - RTFM.&lt;/li&gt;
 &lt;li&gt;Test configuration updates in a staging environment before deploying them to production.&lt;/li&gt;
 &lt;li&gt;Be cautious with retry mechanisms in systems handling long-running or resource-intensive requests.&lt;/li&gt;
 &lt;/ol&gt;
