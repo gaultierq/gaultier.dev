@@ -84,7 +84,7 @@ After 60 seconds, the request did fail gracefully with a 504 error, preventing t
 
 ### Key Learnings:
 
-1. Double check ChatGPT answers for critical config - RTFD.
+1. Double check ChatGPT answers for critical config - RTFM.
 2. Test configuration updates in a staging environment before deploying them to production.
 3. Be cautious with retry mechanisms in systems handling long-running or resource-intensive requests.
 
