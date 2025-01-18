@@ -8,6 +8,8 @@
     "@tailwindcss/typography": "^0.5.15",
     "highlight.js": "^11.11.1",
     "tailwindcss": "^3.4.3",
+    "tailwindcss-animate": "^1.0.7",
     "tocbot": "^4.32.2"
-  }
+  },
+  "dependencies": {}
 }

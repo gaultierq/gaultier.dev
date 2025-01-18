@@ -5,3 +5,30 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer component {
+    /* need colors: primary, accent */
+    .handle {
+        @apply bg-gray-50 hover:cursor-pointer hover:underline hover:bg-gray-200;
+    }
+
+    .open-bg {
+        @apply bg-gradient-to-r from-accent to-primary bg-no-repeat;
+        background-position-x: 0%;
+        background-position-y: 100%;
+        background-size: 0 2em;
+        transition: background-size .2s ease-in-out;
+
+        &:hover {
+            background-size: 100% 2em;
+        }
+    }
+
+
+    .expander {
+        @apply underline decoration-accent hover:decoration-primary active:decoration-active;
+        @apply p-2;
+        @apply open-bg;
+        @apply cursor-pointer;
+    }
+
+}
