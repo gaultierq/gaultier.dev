@@ -20,7 +20,7 @@ The team quickly identified long-running requests executing heavy SQL calculatio
 Ideally, the system should delegate such intensive calculations to background jobs, allowing the requests to return immediately. 
 However, the implementation was building the report synchronously (within the request lifecycle).
 
-Since generating a report can take up to 40 minutes (a reasonable processing time for this task), users often assume the system has stalled. 
+Since generating a report can take up to 40 minutes, users often assume the system has stalled. 
 In response, they refresh the page, unintentionally triggering new requests. Over time, these repeated requests overwhelmed the system, exhausting its resources.
 
 

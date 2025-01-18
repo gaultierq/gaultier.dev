@@ -27,7 +27,8 @@ My approach to resolve this issue is the same it would be like fixing any perfor
 4. deploy
 5. Check the benefit - measure.
 
-The greater difficulty in our journey will lie in step 2.  Fixing a performance issue without measuring is a mistake: often, your intuition will be wrong, and you will optimise the wrong thing.
+The more challenging difficulty lies in step 2: being able to work locally.  
+Fixing a performance issue without measuring is a mistake: often, your intuition will be wrong, and you will optimise the wrong thing.
 
 So lets go !
 
@@ -41,19 +42,15 @@ At this point, I decided to add an extra log to production, to narrow down to th
 
 ## Finding a way to make the bug appear in local
 
-The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the `messages` table is approximately 1TB, with several indexes exceeding 100GB each. 
+The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the `messages` table is approximately 1TB (and without partitioning), with several indexes exceeding 100GB each. 
 Using the production data wasn't feasible, I had to create some sample data.
 
 ### Setting up my local database
 
-In this section I will setup a local postgres and generate some random data using a sql query. I need to generate enough data to have the issue arise.
+In this section I will <span data-expand="docker_postgres_17" class="expander">setup a local postgres</span> and generate some random data using a sql query. I need to generate enough data to have the issue arise.
 
-[!trigger:docker_postgres_17]
-1. setup a test db
-[/!trigger]
 
 [!note:docker_postgres_17]
-
 ```bash
 docker run --platform linux/arm64 \
   --name postgres17 \
@@ -64,14 +61,15 @@ docker run --platform linux/arm64 \
   -d postgres:17
 
 ```
-
-[/!note]
-
+[/!note:docker_postgres_17]
 
 
 
-2. create the messages table and some indexes
 
+2. <span data-expand="create_messages" class="expander">create the messages table and some indexes</span>
+
+
+[!note:create_messages]
 ```sql
 DROP TABLE IF EXISTS messages ;
 
@@ -91,13 +89,13 @@ CREATE INDEX idx_messages_created_at ON messages (created_at);
 CREATE INDEX idx_messages_author_created_at ON messages (author_id, created_at);
 CREATE INDEX idx_messages_abusive_reviewed ON messages (is_abusive, is_spam, is_reviewed, is_archived);
 ```
-
+[/!note:create_messages]
 
 Now that my postgres db is up an running, it’s time to populate my `messages` table with some data. To do that we will use a sql script, that will generate 10 millions messages.
 
 I decided to generate messages with the following spread :
 
-### dataset configuration #1
+### <span data-expand="data_set1" class="expander">dataset configuration #1</span>
 
 `is_abusive` : 1 in 10,000
 
@@ -107,6 +105,7 @@ I decided to generate messages with the following spread :
 
 `is_reviewed` : 50% of those needing review
 
+[!note:data_set1]
 - sql
 
     ```sql
@@ -149,13 +148,14 @@ I decided to generate messages with the following spread :
     		random_data;
     
     ```
-
+[/!note:data_set1]
 
 On my recent laptop it takes about a minute to populate.
 
-- Populate with some data: 1% of abusive messages
+<span data-expand="create_messages1" class="expander">Populate with some data: 1% of abusive messages</span>
 
-  My first approach was pretty naive:
+[!note:create_messages1]
+My first approach was pretty naive:
 
 ```sql
 WITH existing_max_id AS (
@@ -194,7 +194,7 @@ SELECT
 FROM random_data;
 
 ```
-
+[/!note:create_messages1]
 
 When we to try to retrieve the abusive which hasn’t been reviewed yet, we notice the query is pretty fast: 30ms.
 Let’s find out what is going on here, by explaining the query plan.
@@ -208,8 +208,9 @@ So I decided to make the data a lot more sparse, and went for 1 abusive  message
 
 And now, running the query takes a lot more time: around 250ms. And remember, my test database is around 2GB when my production database is 1TB.
 
-- Query plan when there is  1 abusive message every  1 million and 20 millions messages ⇒ 400ms
+- Query plan when there is 1 abusive message every  1 million and 20 millions messages ⇒ 400ms
 
+[!note:query_plan_1_every_1_million]
 ```bash
     
     Limit  (cost=371054.44..371054.45 rows=1 width=80) (actual time=368.576..370.384 rows=5 loops=1)
@@ -249,7 +250,7 @@ And now, running the query takes a lot more time: around 250ms. And remember, my
       Timing: Generation 0.820 ms (Deform 0.448 ms), Inlining 0.000 ms, Optimization 0.701 ms, Emission 10.675 ms, Total 12.196 ms
     Execution Time: 371.023 ms
 ```
-
+[/!note:query_plan_1_every_1_million]
 
 We reach our goal: generating a dataset that will let the performance issue arise.
 
@@ -273,7 +274,7 @@ In our case, every column appearing in the filter clause has it’s own index. B
 
 Result: it didn’t help: boolean column cardinality is very low, and index are not optimised for low cardinality. Query planner will not choose this index
 
-TODO: Check the result. Check the disk usage.
+[//]: # (TODO: Check the result. Check the disk usage.)
 
 ### Experiment 2:  partial index
 
@@ -296,7 +297,7 @@ It look like we have a serious candidate  for our performance issue.
 ---
 
 ```sql
-->  Index Scan using messages_needing_review_idx on messages  (cost=0.28..1798.15 rows=802 width=83)
+-> Index Scan using messages_needing_review_idx on messages (cost=0.28..1798.15 rows=802 width=83)
 ```
 
 ---
@@ -318,8 +319,9 @@ The all magic happens in the `where` clause. The index will be written to only w
 
 Running the query in production confirmed our issue was fixed. Using the measure we implemented in the first section was a good confirmation your partial index helped.
 
-Partial indexes can be delicate; if the filter condition changes, the query planner might not be able to utilize them effectively. Consequently, this could lead to the same issue resurfacing in the future. I want to ensure that future developers, using this query will consistently hit the index. 
-
+Partial indexes are fragile: if the filter condition changes, the query planner will not be able to utilize them effectively. 
+Consequently, this could lead to the same issue resurfacing in the future. 
+I want to ensure that future developers, using this query will consistently hit the index. 
 I added a spec checking if the query planner keeps using the partial index in the future. Adding a postgres view may be another step torward the coupling of the index with the query.
 
 ```ruby
@@ -330,7 +332,7 @@ I added a spec checking if the query planner keeps using the partial index in th
 
 ---
 
-### **Conclusion**
+### Conclusion
 
 In summary, creating a partial index on my `messages` table significantly improved query performance. 
 

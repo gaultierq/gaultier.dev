@@ -1,12 +1,13 @@
-const defaultTheme = require('tailwindcss/defaultTheme')
+const defaultTheme = require('tailwindcss/defaultTheme');
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
     "./source/**/*.{html,erb,slim}",
-    "./config.rb"
+    "./config.rb",
+    "./lib/**/*.rb"
   ],
-
+  safelist: [ 'hover:underline', 'hover:cursor-pointer', 'bg-blue-100'],
   theme: {
 
     extend: {
@@ -15,10 +16,10 @@ module.exports = {
         screen: { raw: 'screen' },
       },
       colors: {
-
         primary: "#27374D",
         secondary:"#526D82",
         accent: "#9DB2BF",
+        active: "#2DB1BF",
         background: "#FEFEFE",
         background2: "#DDE6ED",
       },
@@ -49,6 +50,6 @@ module.exports = {
       }
     },
   },
-  plugins: [require('@tailwindcss/typography')],
+  plugins: [require('@tailwindcss/typography'),require("tailwindcss-animate"),],
 };
 
