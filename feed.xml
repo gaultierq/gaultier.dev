@@ -14,7 +14,7 @@
     <link rel="alternate" href="http://blog.url.com/2025/01/11/how-to-self-ddos-using-nginx-retry-mechanism.html"/>
     <id>http://blog.url.com/2025/01/11/how-to-self-ddos-using-nginx-retry-mechanism.html</id>
     <published>2025-01-11T18:59:00+01:00</published>
-    <updated>2025-01-12T12:59:57+01:00</updated>
+    <updated>2025-01-12T20:48:44+01:00</updated>
     <author>
       <name>Article Author</name>
     </author>
@@ -31,7 +31,7 @@ Here&amp;#39;s a breakdown of what happened. &lt;/p&gt;
 &lt;p&gt;Ideally, the system should delegate such intensive calculations to background jobs, allowing the requests to return immediately. 
 However, the implementation was building the report synchronously (within the request lifecycle).&lt;/p&gt;
 
-&lt;p&gt;Since generating a report can take up to 40 minutes (a reasonable processing time for this task), users often assume the system has stalled. 
+&lt;p&gt;Since generating a report can take up to 40 minutes, users often assume the system has stalled. 
 In response, they refresh the page, unintentionally triggering new requests. Over time, these repeated requests overwhelmed the system, exhausting its resources.&lt;/p&gt;
 
 &lt;h2 id="the-investigation"&gt;The investigation&lt;/h2&gt;
@@ -102,7 +102,7 @@ Every 60 seconds, Nginx would resend the request to our backend, compounding the
     <link rel="alternate" href="http://blog.url.com/2024/12/31/partial-index.html"/>
     <id>http://blog.url.com/2024/12/31/partial-index.html</id>
     <published>2024-12-31T01:00:00+01:00</published>
-    <updated>2025-01-06T09:23:06+01:00</updated>
+    <updated>2025-01-18T18:55:50+01:00</updated>
     <author>
       <name>Article Author</name>
     </author>
@@ -131,7 +131,8 @@ Support team complains the list of abusive message they need to review takes a l
 &lt;li&gt;Check the benefit - measure.&lt;/li&gt;
 &lt;/ol&gt;
 
-&lt;p&gt;The greater difficulty in our journey will lie in step 2.  Fixing a performance issue without measuring is a mistake: often, your intuition will be wrong, and you will optimise the wrong thing.&lt;/p&gt;
+&lt;p&gt;The more challenging difficulty lies in step 2: being able to work locally.&lt;br/&gt;
+Fixing a performance issue without measuring is a mistake: often, your intuition will be wrong, and you will optimise the wrong thing.&lt;/p&gt;
 
 &lt;p&gt;So lets go !&lt;/p&gt;
 
@@ -145,19 +146,14 @@ Support team complains the list of abusive message they need to review takes a l
 
 &lt;h2 id="finding-a-way-to-make-the-bug-appear-in-local"&gt;Finding a way to make the bug appear in local&lt;/h2&gt;
 
-&lt;p&gt;The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the &lt;code class="prettyprint"&gt;messages&lt;/code&gt; table is approximately 1TB, with several indexes exceeding 100GB each. 
+&lt;p&gt;The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the &lt;code class="prettyprint"&gt;messages&lt;/code&gt; table is approximately 1TB (and without partitioning), with several indexes exceeding 100GB each. 
 Using the production data wasn&amp;#39;t feasible, I had to create some sample data.&lt;/p&gt;
 
 &lt;h3 id="setting-up-my-local-database"&gt;Setting up my local database&lt;/h3&gt;
 
-&lt;p&gt;In this section I will setup a local postgres and generate some random data using a sql query. I need to generate enough data to have the issue arise.&lt;/p&gt;
+&lt;p&gt;In this section I will &lt;span data-expand="docker_postgres_17" class="expander"&gt;setup a local postgres&lt;/span&gt; and generate some random data using a sql query. I need to generate enough data to have the issue arise.&lt;/p&gt;
 
-&lt;div class='bg-red-100 note' id='docker_postgres_17'&gt;&lt;ol&gt;
-&lt;li&gt;setup a test db&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/div&gt;
-
-&lt;div class='bg-blue-100 note' id='docker_postgres_17'&gt;&lt;pre&gt;&lt;code class="prettyprint lang-bash"&gt;docker run --platform linux/arm64 \
+&lt;div class='hidden' id='docker_postgres_17'&gt;&lt;pre&gt;&lt;code class="prettyprint lang-bash"&gt;docker run --platform linux/arm64 \
   --name postgres17 \
   -e POSTGRES_USER=postgres \
   -e POSTGRES_DB=partial_blog \
@@ -169,10 +165,10 @@ Using the production data wasn&amp;#39;t feasible, I had to create some sample d
 &lt;/div&gt;
 
 &lt;ol&gt;
-&lt;li&gt;create the messages table and some indexes&lt;/li&gt;
+&lt;li&gt;&lt;span data-expand="create_messages" class="expander"&gt;create the messages table and some indexes&lt;/span&gt;&lt;/li&gt;
 &lt;/ol&gt;
 
-&lt;pre&gt;&lt;code class="prettyprint lang-sql"&gt;DROP TABLE IF EXISTS messages ;
+&lt;div class='hidden' id='create_messages'&gt;&lt;pre&gt;&lt;code class="prettyprint lang-sql"&gt;DROP TABLE IF EXISTS messages ;
 
 CREATE TABLE messages (
     id SERIAL PRIMARY KEY,           
@@ -190,12 +186,13 @@ CREATE INDEX idx_messages_created_at ON messages (created_at);
 CREATE INDEX idx_messages_author_created_at ON messages (author_id, created_at);
 CREATE INDEX idx_messages_abusive_reviewed ON messages (is_abusive, is_spam, is_reviewed, is_archived);
 &lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
 
 &lt;p&gt;Now that my postgres db is up an running, it’s time to populate my &lt;code class="prettyprint"&gt;messages&lt;/code&gt; table with some data. To do that we will use a sql script, that will generate 10 millions messages.&lt;/p&gt;
 
 &lt;p&gt;I decided to generate messages with the following spread :&lt;/p&gt;
 
-&lt;h3 id="dataset-configuration-1"&gt;dataset configuration #1&lt;/h3&gt;
+&lt;h3 id="dataset-configuration-1"&gt;&lt;span data-expand="data_set1" class="expander"&gt;dataset configuration #1&lt;/span&gt;&lt;/h3&gt;
 
 &lt;p&gt;&lt;code class="prettyprint"&gt;is_abusive&lt;/code&gt; : 1 in 10,000&lt;/p&gt;
 
@@ -205,7 +202,7 @@ CREATE INDEX idx_messages_abusive_reviewed ON messages (is_abusive, is_spam, is_
 
 &lt;p&gt;&lt;code class="prettyprint"&gt;is_reviewed&lt;/code&gt; : 50% of those needing review&lt;/p&gt;
 
-&lt;ul&gt;
+&lt;div class='hidden' id='data_set1'&gt;&lt;ul&gt;
 &lt;li&gt;&lt;p&gt;sql&lt;/p&gt;
 
 &lt;pre&gt;&lt;code class="prettyprint lang-sql"&gt;TRUNCATE messages;
@@ -248,14 +245,13 @@ random_data AS (
 
 &lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
 &lt;/ul&gt;
+&lt;/div&gt;
 
 &lt;p&gt;On my recent laptop it takes about a minute to populate.&lt;/p&gt;
 
-&lt;ul&gt;
-&lt;li&gt;Populate with some data: 1% of abusive messages&lt;/li&gt;
-&lt;/ul&gt;
+&lt;p&gt;&lt;span data-expand="create_messages1" class="expander"&gt;Populate with some data: 1% of abusive messages&lt;/span&gt;&lt;/p&gt;
 
-&lt;p&gt;My first approach was pretty naive:&lt;/p&gt;
+&lt;div class='hidden' id='create_messages1'&gt;&lt;p&gt;My first approach was pretty naive:&lt;/p&gt;
 
 &lt;pre&gt;&lt;code class="prettyprint lang-sql"&gt;WITH existing_max_id AS (
     SELECT COALESCE(MAX(id), 0) AS max_id FROM messages 
@@ -293,6 +289,7 @@ SELECT
 FROM random_data;
 
 &lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
 
 &lt;p&gt;When we to try to retrieve the abusive which hasn’t been reviewed yet, we notice the query is pretty fast: 30ms.
 Let’s find out what is going on here, by explaining the query plan.
@@ -307,10 +304,10 @@ It appears that postgres only had to examine only 189k rows.&lt;/p&gt;
 &lt;p&gt;And now, running the query takes a lot more time: around 250ms. And remember, my test database is around 2GB when my production database is 1TB.&lt;/p&gt;
 
 &lt;ul&gt;
-&lt;li&gt;Query plan when there is  1 abusive message every  1 million and 20 millions messages ⇒ 400ms&lt;/li&gt;
+&lt;li&gt;Query plan when there is 1 abusive message every  1 million and 20 millions messages ⇒ 400ms&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;pre&gt;&lt;code class="prettyprint lang-bash"&gt;
+&lt;div class='hidden' id='query_plan_1_every_1_million'&gt;&lt;pre&gt;&lt;code class="prettyprint lang-bash"&gt;
     Limit  (cost=371054.44..371054.45 rows=1 width=80) (actual time=368.576..370.384 rows=5 loops=1)
       Output: id, created_at, updated_at, author_id, content, abusive, reviewed
       Buffers: shared hit=192 read=286529
@@ -348,6 +345,7 @@ It appears that postgres only had to examine only 189k rows.&lt;/p&gt;
       Timing: Generation 0.820 ms (Deform 0.448 ms), Inlining 0.000 ms, Optimization 0.701 ms, Emission 10.675 ms, Total 12.196 ms
     Execution Time: 371.023 ms
 &lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
 
 &lt;p&gt;We reach our goal: generating a dataset that will let the performance issue arise.&lt;/p&gt;
 
@@ -371,8 +369,6 @@ It appears that postgres only had to examine only 189k rows.&lt;/p&gt;
 
 &lt;p&gt;Result: it didn’t help: boolean column cardinality is very low, and index are not optimised for low cardinality. Query planner will not choose this index&lt;/p&gt;
 
-&lt;p&gt;TODO: Check the result. Check the disk usage.&lt;/p&gt;
-
 &lt;h3 id="experiment-2-partial-index"&gt;Experiment 2:  partial index&lt;/h3&gt;
 
 &lt;p&gt;A partial index is a specialised index that will only index some rows matching a filter.&lt;/p&gt;
@@ -392,7 +388,7 @@ WHERE is_abusive = TRUE or is_spam = TRUE;
 
 &lt;hr/&gt;
 
-&lt;pre&gt;&lt;code class="prettyprint lang-sql"&gt;-&amp;gt;  Index Scan using messages_needing_review_idx on messages  (cost=0.28..1798.15 rows=802 width=83)
+&lt;pre&gt;&lt;code class="prettyprint lang-sql"&gt;-&amp;gt; Index Scan using messages_needing_review_idx on messages (cost=0.28..1798.15 rows=802 width=83)
 &lt;/code&gt;&lt;/pre&gt;
 
 &lt;hr/&gt;
@@ -413,9 +409,10 @@ WHERE is_abusive = TRUE or is_spam = TRUE;
 
 &lt;p&gt;Running the query in production confirmed our issue was fixed. Using the measure we implemented in the first section was a good confirmation your partial index helped.&lt;/p&gt;
 
-&lt;p&gt;Partial indexes can be delicate; if the filter condition changes, the query planner might not be able to utilize them effectively. Consequently, this could lead to the same issue resurfacing in the future. I want to ensure that future developers, using this query will consistently hit the index. &lt;/p&gt;
-
-&lt;p&gt;I added a spec checking if the query planner keeps using the partial index in the future. Adding a postgres view may be another step torward the coupling of the index with the query.&lt;/p&gt;
+&lt;p&gt;Partial indexes are fragile: if the filter condition changes, the query planner will not be able to utilize them effectively. 
+Consequently, this could lead to the same issue resurfacing in the future. 
+I want to ensure that future developers, using this query will consistently hit the index. 
+I added a spec checking if the query planner keeps using the partial index in the future. Adding a postgres view may be another step torward the coupling of the index with the query.&lt;/p&gt;
 
 &lt;pre&gt;&lt;code class="prettyprint lang-ruby"&gt;  it &amp;quot;uses the partial index&amp;quot; do
     expect(query.explain).to include(&amp;#39;Index Scan Backward using messages_needing_review_idx on messages&amp;#39;)
@@ -424,7 +421,7 @@ WHERE is_abusive = TRUE or is_spam = TRUE;
 
 &lt;hr/&gt;
 
-&lt;h3 id="conclusion"&gt;&lt;strong&gt;Conclusion&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="conclusion"&gt;Conclusion&lt;/h3&gt;
 
 &lt;p&gt;In summary, creating a partial index on my &lt;code class="prettyprint"&gt;messages&lt;/code&gt; table significantly improved query performance. &lt;/p&gt;
 

@@ -1,6 +1,7 @@
 import { Application } from "@hotwired/stimulus";
 import TocbotController from "./controllers/tocbot_controller.js";
 import HighlightContoller from "./controllers/highlightjs_controller.js";
+import LolController from "./controllers/lol_controller.js";
 
 console.debug("starting application");
 
@@ -21,5 +22,6 @@ window.onload = function(){
 window.Stimulus = Application.start();
 window.Stimulus.register("tocbot", TocbotController);
 window.Stimulus.register("highlightjs", HighlightContoller);
+window.Stimulus.register("lol", LolController);
 
 

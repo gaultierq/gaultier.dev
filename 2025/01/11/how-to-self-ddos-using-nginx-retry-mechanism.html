@@ -13,7 +13,7 @@
   type="module"
   src="../../../javascripts/site.js"
 ></script>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" rel="stylesheet" /><link href="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.css" rel="stylesheet" /></head><body><nav class="p-12"><a href="../../../"><span class="font-serif text-2xl font-semibold whitespace-nowrap text-gray-800">gaultier.dev</span></a><div><ul class="flex gap-4 mt-8 text-gray-800"><li><a href="/">Home</a></li><li><a href="/about">About</a></li></ul></div></nav><div class="p-12"><article class="prose prose-code:before:hidden prose-code:after:hidden prose-headings:font-serif js-toc-content" data-controller="tocbot highlightjs"><p>Last week, I encountered an issue that caused a huge CPU spike on our backend system leading to congestion and potentially unhappy users. 
+<link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" rel="stylesheet" /><link href="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.css" rel="stylesheet" /></head><body><nav class="p-12"><a href="../../../"><span class="font-serif text-2xl font-semibold whitespace-nowrap text-gray-800">gaultier.dev</span></a><div><ul class="flex gap-4 mt-8 text-gray-800"><li><a href="/">Home</a></li><li><a href="/about">About</a></li></ul></div></nav><div class="p-12"><div data-controller="lol"><article class="prose prose-code:before:hidden prose-code:after:hidden prose-headings:font-serif js-toc-content" data-controller="tocbot highlightjs" data-lol-target="source"><p>Last week, I encountered an issue that caused a huge CPU spike on our backend system leading to congestion and potentially unhappy users. 
 While the system stayed operational, this incident highlighted how a small configuration detail can significantly impact performance. 
 Here&#39;s a breakdown of what happened. </p>
 
@@ -26,7 +26,7 @@ Here&#39;s a breakdown of what happened. </p>
 <p>Ideally, the system should delegate such intensive calculations to background jobs, allowing the requests to return immediately. 
 However, the implementation was building the report synchronously (within the request lifecycle).</p>
 
-<p>Since generating a report can take up to 40 minutes (a reasonable processing time for this task), users often assume the system has stalled. 
+<p>Since generating a report can take up to 40 minutes, users often assume the system has stalled. 
 In response, they refresh the page, unintentionally triggering new requests. Over time, these repeated requests overwhelmed the system, exhausting its resources.</p>
 
 <h2 id="the-investigation">The investigation</h2>
@@ -90,4 +90,4 @@ Every 60 seconds, Nginx would resend the request to our backend, compounding the
 <li>Test configuration updates in a staging environment before deploying them to production.</li>
 <li>Be cautious with retry mechanisms in systems handling long-running or resource-intensive requests.</li>
 </ol>
-</article><aside class="w-1/3 fixed right-0 top-0 bottom-0 bg-gray-800"><div class="h-1/3 bg-gray-800"><div class="js-toc text-white p-8"></div></div></aside></div></body></html>
+</article><aside class="hidden sm:block fixed w-1/3 fixed right-0 top-0 bottom-0 bg-gray-800"><div class="h-1/3 bg-gray-800"><div class="js-toc text-white p-8"></div><div class="relative"><div class="peer prose dark:prose-invert" data-lol-target="expansion"></div><div class="absolute top-0 right-0 peer-[:empty]:hidden cursor-pointer" data-action="click->lol#clear"><svg class="size-6" fill="none" stroke="white" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"></path></svg></div></div></div></aside></div></div></body></html>

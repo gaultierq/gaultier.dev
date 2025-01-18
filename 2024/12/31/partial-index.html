@@ -13,7 +13,7 @@
   type="module"
   src="../../../javascripts/site.js"
 ></script>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" rel="stylesheet" /><link href="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.css" rel="stylesheet" /></head><body><nav class="p-12"><a href="../../../"><span class="font-serif text-2xl font-semibold whitespace-nowrap text-gray-800">gaultier.dev</span></a><div><ul class="flex gap-4 mt-8 text-gray-800"><li><a href="/">Home</a></li><li><a href="/about">About</a></li></ul></div></nav><div class="p-12"><article class="prose prose-code:before:hidden prose-code:after:hidden prose-headings:font-serif js-toc-content" data-controller="tocbot highlightjs"><h3 id="introduction">Introduction</h3>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" rel="stylesheet" /><link href="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.css" rel="stylesheet" /></head><body><nav class="p-12"><a href="../../../"><span class="font-serif text-2xl font-semibold whitespace-nowrap text-gray-800">gaultier.dev</span></a><div><ul class="flex gap-4 mt-8 text-gray-800"><li><a href="/">Home</a></li><li><a href="/about">About</a></li></ul></div></nav><div class="p-12"><div data-controller="lol"><article class="prose prose-code:before:hidden prose-code:after:hidden prose-headings:font-serif js-toc-content" data-controller="tocbot highlightjs" data-lol-target="source"><h3 id="introduction">Introduction</h3>
 
 <p>In this post, I will share the insights I gained and the steps I followed to optimize the performance of a PostgreSQL query on a large table by creating a partial index.</p>
 
@@ -38,7 +38,8 @@ Support team complains the list of abusive message they need to review takes a l
 <li>Check the benefit - measure.</li>
 </ol>
 
-<p>The greater difficulty in our journey will lie in step 2.  Fixing a performance issue without measuring is a mistake: often, your intuition will be wrong, and you will optimise the wrong thing.</p>
+<p>The more challenging difficulty lies in step 2: being able to work locally.<br/>
+Fixing a performance issue without measuring is a mistake: often, your intuition will be wrong, and you will optimise the wrong thing.</p>
 
 <p>So lets go !</p>
 
@@ -52,19 +53,14 @@ Support team complains the list of abusive message they need to review takes a l
 
 <h2 id="finding-a-way-to-make-the-bug-appear-in-local">Finding a way to make the bug appear in local</h2>
 
-<p>The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the <code class="prettyprint">messages</code> table is approximately 1TB, with several indexes exceeding 100GB each. 
+<p>The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the <code class="prettyprint">messages</code> table is approximately 1TB (and without partitioning), with several indexes exceeding 100GB each. 
 Using the production data wasn&#39;t feasible, I had to create some sample data.</p>
 
 <h3 id="setting-up-my-local-database">Setting up my local database</h3>
 
-<p>In this section I will setup a local postgres and generate some random data using a sql query. I need to generate enough data to have the issue arise.</p>
+<p>In this section I will <span data-expand="docker_postgres_17" class="expander">setup a local postgres</span> and generate some random data using a sql query. I need to generate enough data to have the issue arise.</p>
 
-<div class='bg-red-100 note' id='docker_postgres_17'><ol>
-<li>setup a test db</li>
-</ol>
-</div>
-
-<div class='bg-blue-100 note' id='docker_postgres_17'><pre><code class="prettyprint lang-bash">docker run --platform linux/arm64 \
+<div class='hidden' id='docker_postgres_17'><pre><code class="prettyprint lang-bash">docker run --platform linux/arm64 \
   --name postgres17 \
   -e POSTGRES_USER=postgres \
   -e POSTGRES_DB=partial_blog \
@@ -76,10 +72,10 @@ Using the production data wasn&#39;t feasible, I had to create some sample data.
 </div>
 
 <ol>
-<li>create the messages table and some indexes</li>
+<li><span data-expand="create_messages" class="expander">create the messages table and some indexes</span></li>
 </ol>
 
-<pre><code class="prettyprint lang-sql">DROP TABLE IF EXISTS messages ;
+<div class='hidden' id='create_messages'><pre><code class="prettyprint lang-sql">DROP TABLE IF EXISTS messages ;
 
 CREATE TABLE messages (
     id SERIAL PRIMARY KEY,           
@@ -97,12 +93,13 @@ CREATE INDEX idx_messages_created_at ON messages (created_at);
 CREATE INDEX idx_messages_author_created_at ON messages (author_id, created_at);
 CREATE INDEX idx_messages_abusive_reviewed ON messages (is_abusive, is_spam, is_reviewed, is_archived);
 </code></pre>
+</div>
 
 <p>Now that my postgres db is up an running, it’s time to populate my <code class="prettyprint">messages</code> table with some data. To do that we will use a sql script, that will generate 10 millions messages.</p>
 
 <p>I decided to generate messages with the following spread :</p>
 
-<h3 id="dataset-configuration-1">dataset configuration #1</h3>
+<h3 id="dataset-configuration-1"><span data-expand="data_set1" class="expander">dataset configuration #1</span></h3>
 
 <p><code class="prettyprint">is_abusive</code> : 1 in 10,000</p>
 
@@ -112,7 +109,7 @@ CREATE INDEX idx_messages_abusive_reviewed ON messages (is_abusive, is_spam, is_
 
 <p><code class="prettyprint">is_reviewed</code> : 50% of those needing review</p>
 
-<ul>
+<div class='hidden' id='data_set1'><ul>
 <li><p>sql</p>
 
 <pre><code class="prettyprint lang-sql">TRUNCATE messages;
@@ -155,14 +152,13 @@ random_data AS (
 
 </code></pre></li>
 </ul>
+</div>
 
 <p>On my recent laptop it takes about a minute to populate.</p>
 
-<ul>
-<li>Populate with some data: 1% of abusive messages</li>
-</ul>
+<p><span data-expand="create_messages1" class="expander">Populate with some data: 1% of abusive messages</span></p>
 
-<p>My first approach was pretty naive:</p>
+<div class='hidden' id='create_messages1'><p>My first approach was pretty naive:</p>
 
 <pre><code class="prettyprint lang-sql">WITH existing_max_id AS (
     SELECT COALESCE(MAX(id), 0) AS max_id FROM messages 
@@ -200,6 +196,7 @@ SELECT
 FROM random_data;
 
 </code></pre>
+</div>
 
 <p>When we to try to retrieve the abusive which hasn’t been reviewed yet, we notice the query is pretty fast: 30ms.
 Let’s find out what is going on here, by explaining the query plan.
@@ -214,10 +211,10 @@ It appears that postgres only had to examine only 189k rows.</p>
 <p>And now, running the query takes a lot more time: around 250ms. And remember, my test database is around 2GB when my production database is 1TB.</p>
 
 <ul>
-<li>Query plan when there is  1 abusive message every  1 million and 20 millions messages ⇒ 400ms</li>
+<li>Query plan when there is 1 abusive message every  1 million and 20 millions messages ⇒ 400ms</li>
 </ul>
 
-<pre><code class="prettyprint lang-bash">
+<div class='hidden' id='query_plan_1_every_1_million'><pre><code class="prettyprint lang-bash">
     Limit  (cost=371054.44..371054.45 rows=1 width=80) (actual time=368.576..370.384 rows=5 loops=1)
       Output: id, created_at, updated_at, author_id, content, abusive, reviewed
       Buffers: shared hit=192 read=286529
@@ -255,6 +252,7 @@ It appears that postgres only had to examine only 189k rows.</p>
       Timing: Generation 0.820 ms (Deform 0.448 ms), Inlining 0.000 ms, Optimization 0.701 ms, Emission 10.675 ms, Total 12.196 ms
     Execution Time: 371.023 ms
 </code></pre>
+</div>
 
 <p>We reach our goal: generating a dataset that will let the performance issue arise.</p>
 
@@ -278,8 +276,6 @@ It appears that postgres only had to examine only 189k rows.</p>
 
 <p>Result: it didn’t help: boolean column cardinality is very low, and index are not optimised for low cardinality. Query planner will not choose this index</p>
 
-<p>TODO: Check the result. Check the disk usage.</p>
-
 <h3 id="experiment-2-partial-index">Experiment 2:  partial index</h3>
 
 <p>A partial index is a specialised index that will only index some rows matching a filter.</p>
@@ -299,7 +295,7 @@ WHERE is_abusive = TRUE or is_spam = TRUE;
 
 <hr/>
 
-<pre><code class="prettyprint lang-sql">-&gt;  Index Scan using messages_needing_review_idx on messages  (cost=0.28..1798.15 rows=802 width=83)
+<pre><code class="prettyprint lang-sql">-&gt; Index Scan using messages_needing_review_idx on messages (cost=0.28..1798.15 rows=802 width=83)
 </code></pre>
 
 <hr/>
@@ -320,9 +316,10 @@ WHERE is_abusive = TRUE or is_spam = TRUE;
 
 <p>Running the query in production confirmed our issue was fixed. Using the measure we implemented in the first section was a good confirmation your partial index helped.</p>
 
-<p>Partial indexes can be delicate; if the filter condition changes, the query planner might not be able to utilize them effectively. Consequently, this could lead to the same issue resurfacing in the future. I want to ensure that future developers, using this query will consistently hit the index. </p>
-
-<p>I added a spec checking if the query planner keeps using the partial index in the future. Adding a postgres view may be another step torward the coupling of the index with the query.</p>
+<p>Partial indexes are fragile: if the filter condition changes, the query planner will not be able to utilize them effectively. 
+Consequently, this could lead to the same issue resurfacing in the future. 
+I want to ensure that future developers, using this query will consistently hit the index. 
+I added a spec checking if the query planner keeps using the partial index in the future. Adding a postgres view may be another step torward the coupling of the index with the query.</p>
 
 <pre><code class="prettyprint lang-ruby">  it &quot;uses the partial index&quot; do
     expect(query.explain).to include(&#39;Index Scan Backward using messages_needing_review_idx on messages&#39;)
@@ -331,9 +328,9 @@ WHERE is_abusive = TRUE or is_spam = TRUE;
 
 <hr/>
 
-<h3 id="conclusion"><strong>Conclusion</strong></h3>
+<h3 id="conclusion">Conclusion</h3>
 
 <p>In summary, creating a partial index on my <code class="prettyprint">messages</code> table significantly improved query performance. </p>
 
 <p>Keep in mind that adding an index  will add write overhead (otherwise we would add indexes for every single query).</p>
-</article><aside class="w-1/3 fixed right-0 top-0 bottom-0 bg-gray-800"><div class="h-1/3 bg-gray-800"><div class="js-toc text-white p-8"></div></div></aside></div></body></html>
+</article><aside class="hidden sm:block fixed w-1/3 fixed right-0 top-0 bottom-0 bg-gray-800"><div class="h-1/3 bg-gray-800"><div class="js-toc text-white p-8"></div><div class="relative"><div class="peer prose dark:prose-invert" data-lol-target="expansion"></div><div class="absolute top-0 right-0 peer-[:empty]:hidden cursor-pointer" data-action="click->lol#clear"><svg class="size-6" fill="none" stroke="white" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"></path></svg></div></div></div></aside></div></div></body></html>
