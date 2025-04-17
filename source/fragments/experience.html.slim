@@ -1,32 +1,62 @@
 div.py-4.rounded
-  h2 Professionnal experience
-  section.mb-4
-    p Freelancer since 2016, here is a selection of projects I've contributed to
 
   section
-    h3.mb-4 Fullstack Developer
+    h3.mb-4 Backend Developer
 
     div.rounded.card.relative
       div.z-10.relative
 
         div
           h4
-            = cute_link_to "https://staging.myiledere.rentals" do
-              | My Ile-de-ré rentals
-              d 2023
-          p Developed a home booking system using <t>rails</t>, the <t>hotwire</t> suite and <t>tailwind</t>. Deployed on <t>render</t> w/ <t>circleci</t>
+            = cute_link_to "https://teeptrak.net" do
+              | Teeptrak
+              d 09/2024 - now
+          p <t>ROR</t> backend deployed on <t>K8s</t> using Helm. Improved performances and reliability.
 
+        .py-2
+          h4
+            = cute_link_to "https://myiledere.ovh" do
+              | My Ile-de-ré rentals
+              d 2024
+          p Developed a home booking system using <t>rails 7</t>, the <t>hotwire</t> suite (stimulus, turbo 8) and <t>tailwind</t>. Deployed on <t>render</t> w/ a CI on <t>circleci</t>. Tests w/ <t>rspec</t> and <t>capybara</t>, db <t>postgres</t> and <t>redis</t>
+
+        .py-2
+          h4
+            = cute_link_to "https://www.happypal.fr/" do
+              | Happypal
+              d 2024
+
+          p Deployed a fully automated deployment pipelines for their <t>capacitor</t> apps, using the <t>fastlane</t> gem and <t>gh actions</t>
+
+        .py-2
+          h4
+            = cute_link_to "https://sush.app/" do
+              | SUSH
+              d 2023
+          p Investigated and fixed mis-configured S3 headers, saving a monthly $7k bill overdue
+        .py-2
+          h4
+            = cute_link_to "https://www.reg-technology.com/" do
+              | Reg Technology
+              d 2021
+          p Migrated a <t>rails</t> app from <t>heroku</t> to <t>ovh</t>; bug fixing and maintenance
+        .py-2
+          h4
+            = cute_link_to "https://groww.fr/" do
+              | Groww
+              d 2021
+          p Brought facebook and google authentication w/ oauth2 to a <t>node.js</t> app
         .py-2
           h4
             = cute_link_to "https://www.youtube.com/watch?v=PkkYJG7rgHE" do
               | Hotel Mobility
               d 2020
 
-          p Led the team to build a full solution for an electric scooter rental system comprised of a <t>rails</t> API + <t>node</t> server embed on rPi. Deployed on <t>gcp</t> using <t>docker</t> & <t>ansible</t>. Payment with <t>stripe</t>. Mobile apps in <t>react-native</t>
+          p <u>Led the team</u> to build a full solution for an electric scooter rental system comprised of a <t>rails</t> API + <t>node</t> server embed on rPi. API and back-office build w/ <t>rails</t>. Payment flows with <t>stripe</t>. Deployed on <t>gcp</t> using <t>docker</t>, <t>ansible</t> & <t>gh actions</t>
 
         .py-2
           h4 Clicknfid <d>2020</d>
-          p Built a chat bot with <t>react</t> <t>graphql</t> <t>prisma</t>
+          p Built a chat bot with <t>node.js</t>,  <t>graphql</t> & <t>prisma</t>
 
     div.card.mt-2
       .py-2
@@ -35,59 +65,28 @@ div.py-4.rounded
             = cute_link_to "https://www.pearltrees.com/" do
               | Pearltrees
               d 2013 - 2016
-          span <i>junior developer (Paris)</i>
-          p Maintained a custom multi-threaded background jobs queuing system built in <t>java</t>. Contributed to a high volume web-scraping system. Contributed to iOs, Android and web apps
+          span CDI (Paris)
 
-  section.mt-4.relative
+          p Delivered standard features on a <t>apache tomcat</t> servlet; db in <t>mysql</t> <t>cassandra</t>
+          p Maintained a custom multi-threaded background jobs queuing system built in <t>java</t>. Contributed to a high volume web-scraping system
 
-    .relative.z-10
-      h3 Mobile Development
-      .rounded.card
-        .py-2
-          h4
-            = cute_link_to "https://www.happypal.fr/" do
-              | Happypal
-              d 2024
-
-          p Deployed a fully automated deployment pipelines for their <t>capacitor</t> apps, using <t>fastlane</t> and <t>GitHub Actions</t>
-
-        .py-2
-          h4
-            = cute_link_to "https://www.instamed.fr/" do
-              | Instamed
-              d 2020-2023
-          p
-            | Led the mobile team in developing a full-featured <t>react-native</t> app from inception to deployment on app stores - deeplinking - notifications - offline support - OTA updates with <t>codepush</t>- test coverage with <t>detox</t> - normalized data store with <t>json-api</t>
-
-          p
-            i similar projects: Hotel mobility <d>2020</d> & Goodshopping <d>2017-2019</d>
-
-
-      .rounded.card.mt-2
-        .py-2
-          h4
-            = cute_link_to "https://sush.app/" do
-              | SUSH
-              d 2023
-          p Investigated and fixed ios and android native <t>widgets</t> saving a monthly $7k S3 bill overdue. Optimized rendering performances tracking useless re-renders and mis-configured <t>zutand</t> selectors.
-
-        .py-2
-          h4
-            = cute_link_to "https://play.google.com/store/apps/details?id=com.babysittor&hl=fr" do
-              | Babysittor
-              d 2016
-
-          p Built & published a <span class="text-gray-800 text-xs">4,6★</span> <t>android</t> app from scratch (profile funnel, payment, notifications, etc.)
 
   section.mt-4.card
-    h3 React Consultant
+    h3 Mobile Development & React Consultancy
 
     .py-2
       h4
         = cute_link_to 'https://jump-technology.com/en' do
           | JUMP
           d 2021 - 2023
-      p Led the front-end team to mitigate their slow app by untangling their components. Initiated a migration to <t>typescript</t> and <t>redux-tool-kit</t>. Delivered team weekly training sessions.
+      p <u>Led the front-end team</u> to mitigate their slow app by untangling their components. Initiated a migration to <t>typescript</t> and <t>rtk</t>. Delivered team weekly training sessions to the team.
+
+    .py-2
+      h4
+        = cute_link_to 'https://www.plb.fr/' do
+          | PLB
+          d 2020
+      p Provided 1 week <t>react.js</t> training programs to groups of professionals
 
     .py-2
       h4
@@ -95,3 +94,26 @@ div.py-4.rounded
           | Weenat
           d 2020
       p Conducted performance audits, providing optimization recommendations. Reduced render count by 80% on home page.
+
+
+
+    .py-2
+      h4
+        = cute_link_to "https://www.instamed.fr/" do
+          | Instamed
+          d 2020-2023
+      p
+        | <u>Led the mobile team</u> in developing a full-featured <t>react-native</t> app from inception to deployment on app stores - deeplinking - notifications - offline support - OTA updates with <t>codepush</t>- test coverage with <t>detox</t> - normalized data store with <t>json-api</t>
+
+      p
+        i similar projects: Goodshopping <d>2017-2019</d>
+
+    .py-2
+      h4
+        = cute_link_to "https://play.google.com/store/apps/details?id=com.babysittor&hl=fr" do
+          | Babysittor
+          d 2016
+
+      p
+        | Built & published a <span class="text-gray-800 text-xs">4,6★</span> <t>android</t> app from scratch (profile funnel, payment, notifications, etc.)
+
