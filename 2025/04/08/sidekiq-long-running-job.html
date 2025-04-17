@@ -1,0 +1,77 @@
+<!doctype html><html><head><meta charset="utf-8" /><meta content="ie=edge" http-equiv="X-UA-Compatible" /><meta content="width=device-width, initial-scale=1, shrink-to-fit=no" name="viewport" /><title>gaultier.dev</title><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="/feed.xml" /><link href="../../../stylesheets/site.css" rel="stylesheet" /><script type="importmap">
+  {
+  "imports": {
+    "@hotwired/stimulus": "https://unpkg.com/@hotwired/stimulus/dist/stimulus.js",
+    "tocbot": "https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.min.js",
+    "highlight.js": "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/es/highlight.min.js"
+  }
+}
+
+
+</script>
+<script
+  type="module"
+  src="../../../javascripts/site.js"
+></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" rel="stylesheet" /><link href="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.css" rel="stylesheet" /></head><body><nav class="p-12"><a href="../../../"><span class="font-serif text-2xl font-semibold whitespace-nowrap text-gray-800">gaultier.dev</span></a><div><ul class="flex gap-4 mt-8 text-gray-800"><li><a href="/">Home</a></li><li><a href="/about">About</a></li></ul></div></nav><div class="p-12"><div data-controller="lol"><article class="prose prose-code:before:hidden prose-code:after:hidden prose-headings:font-serif js-toc-content" data-controller="tocbot highlightjs" data-lol-target="source"><h1 id="how-to-stop-a-buggy-sidekiq-job-from-hogging-your-app">How to Stop a Buggy Sidekiq Job from Hogging Your App</h1>
+
+<p>Imagine this: you have a background job that works fine most of the time—but for a very specific set of inputs, it goes rogue and starts hammering your database with thousands of queries.</p>
+
+<p>That happened to us.</p>
+
+<p>A user filled out a report form with a <em>very large</em> time range. There was no input sanitization, and that input ended up kicking off a job that queried way more data than we expected.</p>
+
+<h2 id="the-problem">The Problem</h2>
+
+<p>The job didn&#39;t just run long—it essentially took over the CPU. It blocked other threads and starved more important jobs from running.</p>
+
+<p>We tried restarting the Sidekiq process, but it didn’t help. The job would just get requeued and picked up again after the restart, repeating the same destructive behavior.</p>
+
+<p>So we asked ourselves: <strong>how do we prevent one buggy job from breaking everything else?</strong></p>
+
+<h2 id="sidekiq-job-timeouts-not-the-best-fix">Sidekiq Job Timeouts: Not the Best Fix</h2>
+
+<p>One option is to use a timeout. If a job takes too long, you kill it. But that has its own problems:</p>
+
+<ul>
+<li><strong>It’s unreliable.</strong></li>
+<li><strong>It doesn&#39;t allow for cleanup.</strong></li>
+</ul>
+
+<p>If the thread gets killed mid-way, it might not release the database connection. If you have a limited DB connection pool, this can quickly cascade into connection exhaustion—affecting other jobs and parts of your app.</p>
+
+<h2 id="a-better-solution-the-quarantine-queue">A Better Solution: The Quarantine Queue</h2>
+
+<p>What we really wanted was a &quot;quarantine queue.&quot; If a job starts misbehaving, we want to move it somewhere safe for analysis and debugging.</p>
+
+<p>Here’s the ideal flow:</p>
+
+<ol>
+<li>A job runs.</li>
+<li>If it&#39;s taking too long or using too many resources, we <em>gracefully</em> stop it.</li>
+<li>Instead of retrying it in the same queue, we move it to a <strong>quarantine queue</strong> for further inspection.</li>
+</ol>
+
+<p>The dream would be for Sidekiq to automatically detect a SIGINT shutdown and move in-progress jobs to a quarantine queue before exiting. But Sidekiq doesn’t offer a hook at that moment—it’s too late in the shutdown process to do anything fancy.</p>
+
+<h2 id="what-we-did-instead">What We Did Instead</h2>
+
+<p>We took a more proactive approach:</p>
+
+<ul>
+<li>We set a <strong>global timeout threshold</strong> in our app logic.</li>
+<li>If a job runs longer than that threshold, we <em>manually restart</em> the Sidekiq process.</li>
+<li>When the job starts again (because Sidekiq requeues it), we detect that it&#39;s a repeat offender—and move it to the quarantine queue <strong>at the start of execution</strong>, <em>before</em> it does anything dangerous.</li>
+</ul>
+
+<p>This way, we protect the system from runaway jobs <strong>without losing important cleanup steps</strong>, and we isolate problematic inputs for debugging.</p>
+
+<h2 id="key-takeaways">Key Takeaways</h2>
+
+<ul>
+<li>A single bad job shouldn&#39;t be allowed to bring down your system.</li>
+<li>Timeouts alone aren’t enough if they leave things half-finished.</li>
+<li>Having a <strong>quarantine strategy</strong> for suspicious jobs gives you better visibility and safety.</li>
+<li>Sometimes, letting a job restart <em>intentionally</em> can be your best defense—if you&#39;re ready to catch it on the second run.</li>
+</ul>
+</article><aside class="hidden sm:block fixed w-1/3 fixed right-0 top-0 bottom-0 bg-gray-800"><div class="h-1/3 bg-gray-800"><div class="js-toc text-white p-8"></div><div class="relative"><div class="peer prose dark:prose-invert" data-lol-target="expansion"></div><div class="absolute top-0 right-0 peer-[:empty]:hidden cursor-pointer" data-action="click->lol#clear"><svg class="size-6" fill="none" stroke="white" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"></path></svg></div></div></div></aside></div></div></body></html>

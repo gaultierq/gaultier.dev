@@ -5,10 +5,82 @@
   <id>http://blog.url.com/</id>
   <link href="http://blog.url.com/"/>
   <link href="http://blog.url.com/feed.xml" rel="self"/>
-  <updated>2025-01-11T18:59:00+01:00</updated>
+  <updated>2025-04-08T21:46:00+02:00</updated>
   <author>
     <name>Blog Author</name>
   </author>
+  <entry>
+    <title>sidekiq-buggy-jobs</title>
+    <link rel="alternate" href="http://blog.url.com/2025/04/08/sidekiq-long-running-job.html"/>
+    <id>http://blog.url.com/2025/04/08/sidekiq-long-running-job.html</id>
+    <published>2025-04-08T21:46:00+02:00</published>
+    <updated>2025-04-17T19:03:53+02:00</updated>
+    <author>
+      <name>Article Author</name>
+    </author>
+    <content type="html">&lt;h1 id="how-to-stop-a-buggy-sidekiq-job-from-hogging-your-app"&gt;How to Stop a Buggy Sidekiq Job from Hogging Your App&lt;/h1&gt;
+
+&lt;p&gt;Imagine this: you have a background job that works fine most of the time—but for a very specific set of inputs, it goes rogue and starts hammering your database with thousands of queries.&lt;/p&gt;
+
+&lt;p&gt;That happened to us.&lt;/p&gt;
+
+&lt;p&gt;A user filled out a report form with a &lt;em&gt;very large&lt;/em&gt; time range. There was no input sanitization, and that input ended up kicking off a job that queried way more data than we expected.&lt;/p&gt;
+
+&lt;h2 id="the-problem"&gt;The Problem&lt;/h2&gt;
+
+&lt;p&gt;The job didn&amp;#39;t just run long—it essentially took over the CPU. It blocked other threads and starved more important jobs from running.&lt;/p&gt;
+
+&lt;p&gt;We tried restarting the Sidekiq process, but it didn’t help. The job would just get requeued and picked up again after the restart, repeating the same destructive behavior.&lt;/p&gt;
+
+&lt;p&gt;So we asked ourselves: &lt;strong&gt;how do we prevent one buggy job from breaking everything else?&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h2 id="sidekiq-job-timeouts-not-the-best-fix"&gt;Sidekiq Job Timeouts: Not the Best Fix&lt;/h2&gt;
+
+&lt;p&gt;One option is to use a timeout. If a job takes too long, you kill it. But that has its own problems:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;It’s unreliable.&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;It doesn&amp;#39;t allow for cleanup.&lt;/strong&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;If the thread gets killed mid-way, it might not release the database connection. If you have a limited DB connection pool, this can quickly cascade into connection exhaustion—affecting other jobs and parts of your app.&lt;/p&gt;
+
+&lt;h2 id="a-better-solution-the-quarantine-queue"&gt;A Better Solution: The Quarantine Queue&lt;/h2&gt;
+
+&lt;p&gt;What we really wanted was a &amp;quot;quarantine queue.&amp;quot; If a job starts misbehaving, we want to move it somewhere safe for analysis and debugging.&lt;/p&gt;
+
+&lt;p&gt;Here’s the ideal flow:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;A job runs.&lt;/li&gt;
+&lt;li&gt;If it&amp;#39;s taking too long or using too many resources, we &lt;em&gt;gracefully&lt;/em&gt; stop it.&lt;/li&gt;
+&lt;li&gt;Instead of retrying it in the same queue, we move it to a &lt;strong&gt;quarantine queue&lt;/strong&gt; for further inspection.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;The dream would be for Sidekiq to automatically detect a SIGINT shutdown and move in-progress jobs to a quarantine queue before exiting. But Sidekiq doesn’t offer a hook at that moment—it’s too late in the shutdown process to do anything fancy.&lt;/p&gt;
+
+&lt;h2 id="what-we-did-instead"&gt;What We Did Instead&lt;/h2&gt;
+
+&lt;p&gt;We took a more proactive approach:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;We set a &lt;strong&gt;global timeout threshold&lt;/strong&gt; in our app logic.&lt;/li&gt;
+&lt;li&gt;If a job runs longer than that threshold, we &lt;em&gt;manually restart&lt;/em&gt; the Sidekiq process.&lt;/li&gt;
+&lt;li&gt;When the job starts again (because Sidekiq requeues it), we detect that it&amp;#39;s a repeat offender—and move it to the quarantine queue &lt;strong&gt;at the start of execution&lt;/strong&gt;, &lt;em&gt;before&lt;/em&gt; it does anything dangerous.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;This way, we protect the system from runaway jobs &lt;strong&gt;without losing important cleanup steps&lt;/strong&gt;, and we isolate problematic inputs for debugging.&lt;/p&gt;
+
+&lt;h2 id="key-takeaways"&gt;Key Takeaways&lt;/h2&gt;
+
+&lt;ul&gt;
+&lt;li&gt;A single bad job shouldn&amp;#39;t be allowed to bring down your system.&lt;/li&gt;
+&lt;li&gt;Timeouts alone aren’t enough if they leave things half-finished.&lt;/li&gt;
+&lt;li&gt;Having a &lt;strong&gt;quarantine strategy&lt;/strong&gt; for suspicious jobs gives you better visibility and safety.&lt;/li&gt;
+&lt;li&gt;Sometimes, letting a job restart &lt;em&gt;intentionally&lt;/em&gt; can be your best defense—if you&amp;#39;re ready to catch it on the second run.&lt;/li&gt;
+&lt;/ul&gt;
+</content>
+  </entry>
   <entry>
     <title>Self DDOS-ing with long-running requests and Nginx</title>
     <link rel="alternate" href="http://blog.url.com/2025/01/11/how-to-self-ddos-using-nginx-retry-mechanism.html"/>
