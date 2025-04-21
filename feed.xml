@@ -10,75 +10,104 @@
     <name>Blog Author</name>
   </author>
   <entry>
-    <title>sidekiq-buggy-jobs</title>
+    <title>The sidekiq quarantine queue</title>
     <link rel="alternate" href="http://blog.url.com/2025/04/08/sidekiq-long-running-job.html"/>
     <id>http://blog.url.com/2025/04/08/sidekiq-long-running-job.html</id>
     <published>2025-04-08T21:46:00+02:00</published>
-    <updated>2025-04-17T19:03:53+02:00</updated>
+    <updated>2025-04-21T15:21:28+02:00</updated>
     <author>
       <name>Article Author</name>
     </author>
     <content type="html">&lt;h1 id="how-to-stop-a-buggy-sidekiq-job-from-hogging-your-app"&gt;How to Stop a Buggy Sidekiq Job from Hogging Your App&lt;/h1&gt;
 
-&lt;p&gt;Imagine this: you have a background job that works fine most of the time—but for a very specific set of inputs, it goes rogue and starts hammering your database with thousands of queries.&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://www.youtube.com/watch?v=bvdWPGQ8cEA&amp;amp;t=229s"&gt;This video&lt;/a&gt; explores the idea of using a quarantine queue to isolate problematic Sidekiq jobs—a concept that inspired this article.&lt;/p&gt;
 
-&lt;p&gt;That happened to us.&lt;/p&gt;
+&lt;p&gt;Sidekiq is a powerful tool for background processing, but even the best systems can get tripped up by a single bad job. What happens when a job goes rogue? Maybe it enters an infinite loop, triggers a memory leak, or hammers your database with an unexpected N+1 query. These bugs are often subtle, introduced during development, and only manifest under specific inputs or load conditions.&lt;/p&gt;
 
-&lt;p&gt;A user filled out a report form with a &lt;em&gt;very large&lt;/em&gt; time range. There was no input sanitization, and that input ended up kicking off a job that queried way more data than we expected.&lt;/p&gt;
+&lt;p&gt;So: &lt;strong&gt;how do you stop a single misbehaving job from taking down your app?&lt;/strong&gt;&lt;/p&gt;
 
-&lt;h2 id="the-problem"&gt;The Problem&lt;/h2&gt;
+&lt;h2 id="why-you-might-need-a-quarantine-queue"&gt;Why You Might Need a Quarantine Queue&lt;/h2&gt;
 
-&lt;p&gt;The job didn&amp;#39;t just run long—it essentially took over the CPU. It blocked other threads and starved more important jobs from running.&lt;/p&gt;
+&lt;p&gt;A quarantine queue is a dedicated Sidekiq queue where you can isolate jobs that are known (or suspected) to cause problems. The goal is to prevent one bad job from degrading the performance or stability of your entire background job system.&lt;/p&gt;
 
-&lt;p&gt;We tried restarting the Sidekiq process, but it didn’t help. The job would just get requeued and picked up again after the restart, repeating the same destructive behavior.&lt;/p&gt;
-
-&lt;p&gt;So we asked ourselves: &lt;strong&gt;how do we prevent one buggy job from breaking everything else?&lt;/strong&gt;&lt;/p&gt;
-
-&lt;h2 id="sidekiq-job-timeouts-not-the-best-fix"&gt;Sidekiq Job Timeouts: Not the Best Fix&lt;/h2&gt;
-
-&lt;p&gt;One option is to use a timeout. If a job takes too long, you kill it. But that has its own problems:&lt;/p&gt;
+&lt;p&gt;Here are a few scenarios where a quarantine queue can help:&lt;/p&gt;
 
 &lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;It’s unreliable.&lt;/strong&gt;&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;It doesn&amp;#39;t allow for cleanup.&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;A job triggers a &lt;strong&gt;missing index or N+1 query&lt;/strong&gt;, overloading your database.&lt;/li&gt;
+&lt;li&gt;A job enters an &lt;strong&gt;infinite loop&lt;/strong&gt;, and hangs forever, preventing other jobs to be picked&lt;br/&gt;&lt;/li&gt;
+&lt;li&gt;A job causes a &lt;strong&gt;memory leak&lt;/strong&gt;, slowly killing your workers.&lt;/li&gt;
+&lt;li&gt;A new deployment introduces a &lt;strong&gt;regression&lt;/strong&gt; that makes a specific job 10x longer for certain inputs.&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;p&gt;If the thread gets killed mid-way, it might not release the database connection. If you have a limited DB connection pool, this can quickly cascade into connection exhaustion—affecting other jobs and parts of your app.&lt;/p&gt;
+&lt;p&gt;Mistakes happen—especially during development. But when they hit production, you need a strategy that protects the rest of your system.&lt;/p&gt;
 
-&lt;h2 id="a-better-solution-the-quarantine-queue"&gt;A Better Solution: The Quarantine Queue&lt;/h2&gt;
+&lt;h2 id="a-real-world-example"&gt;A Real-World Example&lt;/h2&gt;
 
-&lt;p&gt;What we really wanted was a &amp;quot;quarantine queue.&amp;quot; If a job starts misbehaving, we want to move it somewhere safe for analysis and debugging.&lt;/p&gt;
+&lt;p&gt;Here’s something that actually happened to us.&lt;/p&gt;
 
-&lt;p&gt;Here’s the ideal flow:&lt;/p&gt;
+&lt;p&gt;A user filled out a report form with a &lt;em&gt;very large&lt;/em&gt; time range. There was no input sanitization, and that led to a &lt;code class="prettyprint"&gt;ReportJob&lt;/code&gt; being enqueued that queried &lt;strong&gt;a massive amount of data&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;The job didn’t just run long—it choked the system. It used excessive CPU, blocked other threads, and starved more critical jobs from running. We restarted the Sidekiq process (pod), but the job just got picked up again and repeated the same behavior.&lt;/p&gt;
+
+&lt;p&gt;We asked ourselves: &lt;strong&gt;how can we prevent a single job from breaking everything else?&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h2 id="why-timeouts-aren-t-enough"&gt;Why Timeouts Aren’t Enough&lt;/h2&gt;
+
+&lt;p&gt;One option is to use job timeouts. Kill the job if it runs too long.&lt;/p&gt;
+
+&lt;p&gt;But timeouts come with their own set of issues:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;They’re unreliable&lt;/strong&gt; — the job might get killed mid-way, leaving things half-done.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;They can cause resource leaks&lt;/strong&gt; — for example, if the job held onto a DB connection and didn’t release it.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;If your DB connection pool is small, one leaked connection can snowball into widespread failure across your app.&lt;/p&gt;
+
+&lt;h2 id="a-better-approach-the-quarantine-queue"&gt;A Better Approach: The Quarantine Queue&lt;/h2&gt;
+
+&lt;p&gt;What we really wanted was a way to catch problematic jobs &lt;strong&gt;before&lt;/strong&gt; they can do damage.&lt;/p&gt;
+
+&lt;p&gt;Imagine this flow:&lt;/p&gt;
 
 &lt;ol&gt;
-&lt;li&gt;A job runs.&lt;/li&gt;
-&lt;li&gt;If it&amp;#39;s taking too long or using too many resources, we &lt;em&gt;gracefully&lt;/em&gt; stop it.&lt;/li&gt;
-&lt;li&gt;Instead of retrying it in the same queue, we move it to a &lt;strong&gt;quarantine queue&lt;/strong&gt; for further inspection.&lt;/li&gt;
+&lt;li&gt;A job starts running.&lt;/li&gt;
+&lt;li&gt;If it&amp;#39;s detected as a repeat offender (based on input or context), we move it to a &lt;strong&gt;quarantine queue&lt;/strong&gt;.&lt;/li&gt;
+&lt;li&gt;That queue runs in isolation and doesn’t affect the rest of your app.&lt;/li&gt;
 &lt;/ol&gt;
 
-&lt;p&gt;The dream would be for Sidekiq to automatically detect a SIGINT shutdown and move in-progress jobs to a quarantine queue before exiting. But Sidekiq doesn’t offer a hook at that moment—it’s too late in the shutdown process to do anything fancy.&lt;/p&gt;
+&lt;p&gt;Sidekiq doesn&amp;#39;t offer a shutdown hook where you can intercept in-progress jobs before they&amp;#39;re killed. So, we had to get creative.&lt;/p&gt;
 
 &lt;h2 id="what-we-did-instead"&gt;What We Did Instead&lt;/h2&gt;
 
-&lt;p&gt;We took a more proactive approach:&lt;/p&gt;
+&lt;p&gt;We implemented a proactive strategy:&lt;/p&gt;
 
 &lt;ul&gt;
-&lt;li&gt;We set a &lt;strong&gt;global timeout threshold&lt;/strong&gt; in our app logic.&lt;/li&gt;
-&lt;li&gt;If a job runs longer than that threshold, we &lt;em&gt;manually restart&lt;/em&gt; the Sidekiq process.&lt;/li&gt;
-&lt;li&gt;When the job starts again (because Sidekiq requeues it), we detect that it&amp;#39;s a repeat offender—and move it to the quarantine queue &lt;strong&gt;at the start of execution&lt;/strong&gt;, &lt;em&gt;before&lt;/em&gt; it does anything dangerous.&lt;/li&gt;
+&lt;li&gt;We set a &lt;strong&gt;soft timeout threshold&lt;/strong&gt; in our app logic.&lt;/li&gt;
+&lt;li&gt;If a job exceeds that threshold, we &lt;strong&gt;manually restart&lt;/strong&gt; the Sidekiq process.&lt;/li&gt;
+&lt;li&gt;When Sidekiq requeues the job after the restart, we &lt;strong&gt;detect&lt;/strong&gt; that it’s a repeat offender.&lt;/li&gt;
+&lt;li&gt;At the start of the job execution, we check its input and &lt;strong&gt;move it to the quarantine queue&lt;/strong&gt; if needed—&lt;strong&gt;before it does any real work&lt;/strong&gt;.&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;p&gt;This way, we protect the system from runaway jobs &lt;strong&gt;without losing important cleanup steps&lt;/strong&gt;, and we isolate problematic inputs for debugging.&lt;/p&gt;
+&lt;p&gt;This lets us:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Prevent cascading failures.&lt;/li&gt;
+&lt;li&gt;Preserve cleanup logic.&lt;/li&gt;
+&lt;li&gt;Debug bad jobs in isolation.&lt;/li&gt;
+&lt;/ul&gt;
 
 &lt;h2 id="key-takeaways"&gt;Key Takeaways&lt;/h2&gt;
 
 &lt;ul&gt;
-&lt;li&gt;A single bad job shouldn&amp;#39;t be allowed to bring down your system.&lt;/li&gt;
-&lt;li&gt;Timeouts alone aren’t enough if they leave things half-finished.&lt;/li&gt;
-&lt;li&gt;Having a &lt;strong&gt;quarantine strategy&lt;/strong&gt; for suspicious jobs gives you better visibility and safety.&lt;/li&gt;
-&lt;li&gt;Sometimes, letting a job restart &lt;em&gt;intentionally&lt;/em&gt; can be your best defense—if you&amp;#39;re ready to catch it on the second run.&lt;/li&gt;
+&lt;li&gt;A single bad job &lt;strong&gt;shouldn’t&lt;/strong&gt; be allowed to bring down your app.&lt;/li&gt;
+&lt;li&gt;A &lt;strong&gt;quarantine queue&lt;/strong&gt; gives you visibility, safety, and a path to resolution.&lt;/li&gt;
+&lt;li&gt;Sometimes, letting a job restart &lt;em&gt;intentionally&lt;/em&gt; is the best move—if you&amp;#39;re prepared to catch it the second time.&lt;/li&gt;
 &lt;/ul&gt;
+
+&lt;hr/&gt;
+
+&lt;p&gt;Having a quarantine strategy in your Sidekiq setup is like having an airlock in your spaceship. You isolate the threat before it spreads—and keep the rest of your system breathing easy.&lt;/p&gt;
 </content>
   </entry>
   <entry>
