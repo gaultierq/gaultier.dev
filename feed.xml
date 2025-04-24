@@ -115,12 +115,12 @@
     <link rel="alternate" href="http://blog.url.com/2025/01/11/how-to-self-ddos-using-nginx-retry-mechanism.html"/>
     <id>http://blog.url.com/2025/01/11/how-to-self-ddos-using-nginx-retry-mechanism.html</id>
     <published>2025-01-11T18:59:00+01:00</published>
-    <updated>2025-04-21T15:47:58+02:00</updated>
+    <updated>2025-04-24T19:52:26+02:00</updated>
     <author>
       <name>Article Author</name>
     </author>
-    <content type="html">&lt;p&gt;Last week, I encountered an issue that caused a huge CPU spike on our backend system leading to congestion and potentially unhappy users. 
-While the system stayed operational, this incident highlighted how a small configuration detail can significantly impact performance. 
+    <content type="html">&lt;p&gt;Last week, I encountered an issue that caused a huge CPU spike on our backend system leading to congestion. 
+While the platform stayed up and running, this incident highlighted how a small configuration detail can significantly impact performance. 
 Here&amp;#39;s a breakdown of what happened. &lt;/p&gt;
 
 &lt;h2 id="the-incident"&gt;The Incident&lt;/h2&gt;
@@ -129,37 +129,38 @@ Here&amp;#39;s a breakdown of what happened. &lt;/p&gt;
 
 &lt;p&gt;The team quickly identified long-running requests executing heavy SQL calculations. These requests were triggered when customers generated yearly reports for their dashboards.&lt;/p&gt;
 
-&lt;p&gt;Ideally, the system should delegate such intensive calculations to background jobs, allowing the requests to return immediately. 
-However, the implementation was building the report synchronously (within the request lifecycle).&lt;/p&gt;
+&lt;p&gt;Ideally, the system should delegate such intensive calculations to background jobs, allowing the requests to return immediately after enqueuing a job. 
+However, the implementation was building the report synchronously (within the request lifecycle). That was a first red flag. &lt;/p&gt;
 
-&lt;p&gt;Since generating a report can take up to 40 minutes, users often assume the system has stalled. 
-In response, they refresh the page, unintentionally triggering new requests. Over time, these repeated requests overwhelmed the system, exhausting its resources.&lt;/p&gt;
+&lt;p&gt;Since generating such a report can take up to 40 minutes, users often assume the system has stalled, and after a few seconds, would hit the refresh button, triggering new requests. &lt;/p&gt;
+
+&lt;p&gt;Over time, these repeated requests overwhelmed the system, exhausting its resources.&lt;/p&gt;
 
 &lt;h2 id="the-investigation"&gt;The investigation&lt;/h2&gt;
 
 &lt;p&gt;To understand the issue, I tested it myself by generating a new yearly report. After about 3 minutes, my browser encountered a 504 proxy timeout error.
-Curious about whree this timeout was configured, I dug into our Nginx controller settings and found: &lt;/p&gt;
+Curious about where this timeout was configured, I dug into our nginx ingress controller settings and found: &lt;/p&gt;
 
 &lt;pre&gt;&lt;code class="prettyprint"&gt;proxy_read_timeout 60s;
 proxy_next_upstream_tries 3;
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;This behavior was eye-opening! When a user requests a report, Nginx forwards the request to our Rails application, 
-which then generates lots of database queries. If the backend doesn’t respond within 60 seconds, Nginx retries the request—up to three times.&lt;/p&gt;
+&lt;p&gt;Hm interesting ! When a user requests a report, nginx forwards the request to our Rails application, 
+which then generates lots of database load. If the upgstream server (our web app) doesn’t respond within 60 seconds, nginx retries the request—up to three times. 
+At this point, it&amp;#39;s important to note, that if nginx has given up on reading a response, our web server is still processing the request, and will continue for as long as the report generation requires.&lt;/p&gt;
 
-&lt;p&gt;In essence, our own system (Nginx) was resending requests every minute while (understandably) frustrated users were refreshing the page, sending additional requests. 
+&lt;p&gt;On top of nginx resending requests every 60 seconds while (understandably) frustrated users were refreshing the page, sending additional requests. 
 This compounded the problem, overwhelming the system from both internal retries and external user actions.&lt;/p&gt;
 
-&lt;p&gt;While the 40-minute request time is undeniably a design flaw that requires immediate attention, 
-the &lt;strong&gt;ingress controller&amp;#39;s retry logic unintentionally magnified the issue by tripling the load&lt;/strong&gt;. &lt;/p&gt;
+&lt;p&gt;While the 40-minute request time is undeniably a design flaw that requires immediate attention, the &lt;strong&gt;ingress controller&amp;#39;s retry logic unintentionally magnified the issue by tripling the load&lt;/strong&gt;. &lt;/p&gt;
 
 &lt;p&gt;This made it even harder for our team to manage the situation effectively.&lt;/p&gt;
 
 &lt;h2 id="the-fix"&gt;The Fix&lt;/h2&gt;
 
 &lt;p&gt;The team quickly agreed that report generation should be handled asynchronously using a background job. 
-However, implementing this solution would take several days, and we needed an immediate fix to prevent another CPU spike. 
-To mitigate the issue temporarily, we decided to deactivate the Nginx retry mechanism. 
+However, implementing this solution would take some work, and we needed an immediate fix to prevent another CPU spike. 
+To mitigate the issue temporarily, we decided to deactivate the nginx retry mechanism. 
 While this wouldn’t fully resolve the problem, it would reduce the load by two-thirds.&lt;/p&gt;
 
 &lt;p&gt;Rather than diving into the documentation myself, I opted to consult ChatGPT for guidance. 
@@ -175,27 +176,17 @@ Meanwhile, the database load began to rise again.&lt;/p&gt;
 &lt;p&gt;Realizing something was wrong, I quickly rolled back the Helm chart and deleted all the web pods, which restored the CPU usage to normal. 
 Disaster (barely) averted.&lt;/p&gt;
 
-&lt;p&gt;I went back to the Nginx documentation and finally read the relevant section properly. Here&amp;#39;s what I found:&lt;/p&gt;
+&lt;p&gt;Time to read nginx documentation. Here&amp;#39;s what I found regarding &lt;code class="prettyprint"&gt;proxy_next_upstream_tries&lt;/code&gt;:&lt;/p&gt;
 
 &lt;pre&gt;&lt;code class="prettyprint"&gt;Limits the time during which a request can be passed to the next server. The 0 value turns off this limitation.
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;That’s when it hit me: by setting &lt;code class="prettyprint"&gt;proxy_next_upstream_tries&lt;/code&gt; to &lt;code class="prettyprint"&gt;0&lt;/code&gt;, I had configured Nginx to retry requests indefinitely! 
-Every 60 seconds, Nginx would resend the request to our backend, compounding the problem exponentially: a single user’s request could have overwhelmed our resources entirely.&lt;/p&gt;
+&lt;p&gt;By setting &lt;code class="prettyprint"&gt;proxy_next_upstream_tries&lt;/code&gt; to &lt;code class="prettyprint"&gt;0&lt;/code&gt;, I had configured nginx to retry requests indefinitely! 
+Every 60 seconds, nginx would resend the request to our backend, compounding the problem exponentially: a single user’s request could have overwhelmed our resources entirely.&lt;/p&gt;
 
-&lt;p&gt;The fix? I updated the configuration to set &lt;code class="prettyprint"&gt;proxy_next_upstream_tries&lt;/code&gt; to &lt;code class="prettyprint"&gt;1&lt;/code&gt;, ensuring that Nginx would only try the request once (no retry). &lt;/p&gt;
+&lt;p&gt;I rushed to update the configuration and set &lt;code class="prettyprint"&gt;proxy_next_upstream_tries&lt;/code&gt; to &lt;code class="prettyprint"&gt;1&lt;/code&gt;, ensuring that Nginx would only try the request once (no retry). &lt;/p&gt;
 
 &lt;p&gt;After 60 seconds, the request did fail gracefully with a 504 error, preventing the backend from being overwhelmed.&lt;/p&gt;
-
-&lt;hr/&gt;
-
-&lt;h3 id="key-learnings"&gt;Key Learnings:&lt;/h3&gt;
-
-&lt;ol&gt;
-&lt;li&gt;Double check ChatGPT answers for critical config - RTFM.&lt;/li&gt;
-&lt;li&gt;Test configuration updates in a staging environment before deploying them to production.&lt;/li&gt;
-&lt;li&gt;Be cautious with retry mechanisms in systems handling long-running or resource-intensive requests.&lt;/li&gt;
-&lt;/ol&gt;
 </content>
   </entry>
   <entry>
