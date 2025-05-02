@@ -6,6 +6,7 @@ html
     meta[name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"]
     title = "gaultier.dev"
     = feed_tag :atom, "#{blog.options.prefix.to_s}/feed.xml", title: "Atom Feed"
+    script src="https://umami.canonic.fr/script.js" data-website-id="58e0c11c-be1a-4563-a97f-9005d206fd48" defer=true
     = stylesheet_link_tag "site"
     = javascript_importmap_tags
     / kind of weird, but css cannot be handled like importmaps
