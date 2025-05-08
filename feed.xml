@@ -14,100 +14,179 @@
     <link rel="alternate" href="http://blog.url.com/2025/04/08/sidekiq-long-running-job.html"/>
     <id>http://blog.url.com/2025/04/08/sidekiq-long-running-job.html</id>
     <published>2025-04-08T21:46:00+02:00</published>
-    <updated>2025-04-21T15:47:58+02:00</updated>
+    <updated>2025-05-08T16:16:32+02:00</updated>
     <author>
       <name>Article Author</name>
     </author>
-    <content type="html">&lt;h1 id="how-to-stop-a-buggy-sidekiq-job-from-hogging-your-app"&gt;How to Stop a Buggy Sidekiq Job from Hogging Your App&lt;/h1&gt;
+    <content type="html">&lt;h1 id="how-to-shield-your-app-from-a-rogue-sidekiq-job"&gt;How to Shield Your App from a Rogue Sidekiq Job&lt;/h1&gt;
 
-&lt;p&gt;&lt;a href="https://www.youtube.com/watch?v=bvdWPGQ8cEA&amp;amp;t=229s"&gt;This video&lt;/a&gt; explores the idea of using a quarantine queue to isolate problematic Sidekiq jobs—a concept that inspired this article.&lt;/p&gt;
+&lt;p&gt;Sidekiq is great for background processing—but a single misbehaving job (infinite loops, massive data scans, N+1 storms…) can choke your entire pipeline. Restarting Sidekiq only brings the offender right back. &lt;/p&gt;
 
-&lt;p&gt;Sidekiq is a powerful tool for background processing, but even the best systems can get tripped up by a single bad job. What happens when a job goes rogue? Maybe it enters an infinite loop, triggers a memory leak, or hammers your database with an unexpected N+1 query. These bugs are often subtle, introduced during development, and only manifest under specific inputs or load conditions.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;How do you quarantine a bad job so that it can’t block all your critical work?&lt;/strong&gt;&lt;/p&gt;
 
-&lt;p&gt;So: &lt;strong&gt;how do you stop a single misbehaving job from taking down your app?&lt;/strong&gt;&lt;/p&gt;
+&lt;h2 id="a-real-world-incident"&gt;A Real-World Incident&lt;/h2&gt;
 
-&lt;h2 id="why-you-might-need-a-quarantine-queue"&gt;Why You Might Need a Quarantine Queue&lt;/h2&gt;
+&lt;p&gt;A user submitted a report with a huge date range—no sanitization—and our &lt;code class="prettyprint"&gt;ReportJob&lt;/code&gt; tried to load terabytes of data. CPU spiked, threads stalled, and everything ground to a halt. Killing and restarting Sidekiq pods simply requeued the same job, and the outage persisted. We needed a way to isolate that single problematic worker.&lt;/p&gt;
 
-&lt;p&gt;A quarantine queue is a dedicated Sidekiq queue where you can isolate jobs that are known (or suspected) to cause problems. The goal is to prevent one bad job from degrading the performance or stability of your entire background job system.&lt;/p&gt;
+&lt;h2 id="introducing-a-quarantine-queue"&gt;Introducing a “Quarantine” Queue&lt;/h2&gt;
 
-&lt;p&gt;Here are a few scenarios where a quarantine queue can help:&lt;/p&gt;
+&lt;p&gt;The idea is simple: route suspect jobs into a low-concurrency queue serviced by a dedicated Sidekiq process. They’re still retried, but can’t block your high-priority queues.&lt;/p&gt;
+
+&lt;h3 id="1-moving-jobs-to-the-quarantine-queue-manually"&gt;1. Moving jobs to the quarantine queue manually&lt;/h3&gt;
+
+&lt;p&gt;We begin by intercepting job enqueuing and swapping their queue name if they match an ENV-driven “quarantine” list:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="prettyprint lang-ruby"&gt;class QuarantineMiddleware
+  def call(worker, job, queue, redis_pool)
+    if ENV.fetch(&amp;#39;QUARANTINED_JOBS&amp;#39;, &amp;#39;&amp;#39;).split(&amp;#39;;&amp;#39;).include?(job[&amp;#39;class&amp;#39;])
+      job[&amp;#39;queue&amp;#39;] = &amp;#39;quarantine&amp;#39;
+    end
+    yield
+  end
+end
+
+Sidekiq.configure_client do |config|
+  config.client_middleware { |chain| chain.add QuarantineMiddleware }
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Set
+&lt;code class="prettyprint"&gt;
+QUARANTINED_JOBS=ReportJob;MegaLoopJob
+&lt;/code&gt;
+to start shunting those jobs into quarantine.&lt;/p&gt;
+
+&lt;p&gt;&lt;a href="https://www.youtube.com/watch?v=bvdWPGQ8cEA&amp;amp;t=229s"&gt;Inspired by this deep-dive on isolating memory-leak jobs.&lt;/a&gt;.&lt;/p&gt;
+
+&lt;h3 id="2-handling-infinite-loops-on-restart"&gt;2. Handling Infinite Loops on Restart&lt;/h3&gt;
+
+&lt;p&gt;That client middleware only works on new enqueues; it can’t catch jobs Sidekiq auto-requeues on shutdown. To trap long-running jobs after a pod restart, we use a server middleware:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="prettyprint lang-ruby"&gt;class LongRunningJobInterceptor
+  QUARANTINE_QUEUE = &amp;#39;quarantine&amp;#39;
+
+  def call(worker, job, queue)
+    jid = job[&amp;#39;jid&amp;#39;]
+    if queue != QUARANTINE_QUEUE &amp;amp;&amp;amp; should_quarantine?(jid)
+      # Requeue safely into quarantine
+      worker.class.set(queue: QUARANTINE_QUEUE).perform_async(*job[&amp;#39;args&amp;#39;])
+      return
+    end
+
+    track_start(jid)
+    begin
+      yield
+    rescue Sidekiq::Shutdown
+      raise
+    ensure
+      untrack(jid)
+    end
+  end
+
+  private
+
+  def should_quarantine?(jid)
+    start_time = Sidekiq.redis { |r| r.get(&amp;quot;job:#{jid}:started_at&amp;quot;).to_time }
+    (Time.current - start_time) &amp;gt; 1.hour
+  end
+
+  def track_start(jid)
+    Sidekiq.redis { |r| r.set(&amp;quot;job:#{jid}:started_at&amp;quot;, Time.current) }
+  end
+
+  def untrack(jid)
+    Sidekiq.redis { |r| r.del(&amp;quot;job:#{jid}:started_at&amp;quot;) }
+  end
+end
+
+Sidekiq.configure_server do |config|
+  config.server_middleware { |chain| chain.add LongRunningJobInterceptor }
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now, whenever you restart Sidekiq, any job that had been running “too long” automatically moves into your quarantine queue instead of clogging default or critical queues.&lt;/p&gt;
+
+&lt;h3 id="3-automating-detection-restart"&gt;3. Automating Detection &amp;amp; Restart&lt;/h3&gt;
+
+&lt;p&gt;Maintaining a list of known bad actors is helpful, but it still leaves you manually updating ENV variables and restarting processes when things go awry. What if we could automate both detection and remediation of runaway jobs?
+Let’s watch for runaway jobs and trigger a graceful process restart.&lt;/p&gt;
+
+&lt;h4 id="3-a-why-not-simple-timeouts"&gt;3.a Why Not Simple Timeouts?&lt;/h4&gt;
+
+&lt;p&gt;Some teams rely on hard timeouts (&lt;code class="prettyprint"&gt;Sidekiq::JobTimeout&lt;/code&gt;) or even OS-level kills. Unfortunately, these can:&lt;/p&gt;
 
 &lt;ul&gt;
-&lt;li&gt;A job triggers a &lt;strong&gt;missing index or N+1 query&lt;/strong&gt;, overloading your database.&lt;/li&gt;
-&lt;li&gt;A job enters an &lt;strong&gt;infinite loop&lt;/strong&gt;, and hangs forever, preventing other jobs to be picked&lt;br/&gt;&lt;/li&gt;
-&lt;li&gt;A job causes a &lt;strong&gt;memory leak&lt;/strong&gt;, slowly killing your workers.&lt;/li&gt;
-&lt;li&gt;A new deployment introduces a &lt;strong&gt;regression&lt;/strong&gt; that makes a specific job 10x longer for certain inputs.&lt;/li&gt;
+&lt;li&gt;Abort mid-transaction, leaving partial writes or queued messages.&lt;/li&gt;
+&lt;li&gt;Leak resources (DB connections, file handles), causing pool exhaustion.&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;p&gt;Mistakes happen—especially during development. But when they hit production, you need a strategy that protects the rest of your system.&lt;/p&gt;
+&lt;h4 id="3-b-soft-timeout-monitoring"&gt;3.b Soft Timeout Monitoring&lt;/h4&gt;
 
-&lt;h2 id="a-real-world-example"&gt;A Real-World Example&lt;/h2&gt;
-
-&lt;p&gt;Here’s something that actually happened to us.&lt;/p&gt;
-
-&lt;p&gt;A user filled out a report form with a &lt;em&gt;very large&lt;/em&gt; time range. There was no input sanitization, and that led to a &lt;code class="prettyprint"&gt;ReportJob&lt;/code&gt; being enqueued that queried &lt;strong&gt;a massive amount of data&lt;/strong&gt;.&lt;/p&gt;
-
-&lt;p&gt;The job didn’t just run long—it choked the system. It used excessive CPU, blocked other threads, and starved more critical jobs from running. We restarted the Sidekiq process (pod), but the job just got picked up again and repeated the same behavior.&lt;/p&gt;
-
-&lt;p&gt;We asked ourselves: &lt;strong&gt;how can we prevent a single job from breaking everything else?&lt;/strong&gt;&lt;/p&gt;
-
-&lt;h2 id="why-timeouts-aren-t-enough"&gt;Why Timeouts Aren’t Enough&lt;/h2&gt;
-
-&lt;p&gt;One option is to use job timeouts. Kill the job if it runs too long.&lt;/p&gt;
-
-&lt;p&gt;But timeouts come with their own set of issues:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;They’re unreliable&lt;/strong&gt; — the job might get killed mid-way, leaving things half-done.&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;They can cause resource leaks&lt;/strong&gt; — for example, if the job held onto a DB connection and didn’t release it.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;If your DB connection pool is small, one leaked connection can snowball into widespread failure across your app.&lt;/p&gt;
-
-&lt;h2 id="a-better-approach-the-quarantine-queue"&gt;A Better Approach: The Quarantine Queue&lt;/h2&gt;
-
-&lt;p&gt;What we really wanted was a way to catch problematic jobs &lt;strong&gt;before&lt;/strong&gt; they can do damage.&lt;/p&gt;
-
-&lt;p&gt;Imagine this flow:&lt;/p&gt;
+&lt;p&gt;Instead of killing the job mid-flight, let’s signal our orchestrator to restart the entire Sidekiq process, then quarantine repeat offenders on the next run.&lt;/p&gt;
 
 &lt;ol&gt;
-&lt;li&gt;A job starts running.&lt;/li&gt;
-&lt;li&gt;If it&amp;#39;s detected as a repeat offender (based on input or context), we move it to a &lt;strong&gt;quarantine queue&lt;/strong&gt;.&lt;/li&gt;
-&lt;li&gt;That queue runs in isolation and doesn’t affect the rest of your app.&lt;/li&gt;
+&lt;li&gt;Track job start times in a shared registry.&lt;/li&gt;
+&lt;li&gt;Periodically scan for jobs exceeding a configurable threshold (e.g. 2 minutes).&lt;/li&gt;
+&lt;li&gt;Flag the Sidekiq process as unhealthy (e.g. by touching a file).&lt;/li&gt;
+&lt;li&gt;Let Kubernetes or Systemd detect the unhealthy marker and recycle the pod or service.&lt;/li&gt;
 &lt;/ol&gt;
 
-&lt;p&gt;Sidekiq doesn&amp;#39;t offer a shutdown hook where you can intercept in-progress jobs before they&amp;#39;re killed. So, we had to get creative.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="prettyprint lang-ruby"&gt;class SidekiqMonitor
+  HEALTH_FILE = Rails.root.join(&amp;#39;tmp/sidekiq_unhealthy&amp;#39;).freeze
 
-&lt;h2 id="what-we-did-instead"&gt;What We Did Instead&lt;/h2&gt;
+  def self.start
+    Thread.new(name: &amp;#39;sidekiq-monitor&amp;#39;) do
+      loop do
+        RunningJobs.list.each do |job|
+          if Time.current - job[:started_at] &amp;gt; 2.minutes
+            FileUtils.touch(HEALTH_FILE)
+            break
+          end
+        end
+        sleep 1
+      end
+    end
+  end
+end
 
-&lt;p&gt;We implemented a proactive strategy:&lt;/p&gt;
+class RunningJobs
+  @jobs = Concurrent::Map.new
+
+  def call(worker, job, queue)
+    @jobs[Thread.current.object_id] = { jid: job[&amp;#39;jid&amp;#39;], started_at: Time.current }
+    yield
+  ensure
+    @jobs.delete(Thread.current.object_id)
+  end
+
+  def self.list
+    @jobs.values
+  end
+end
+
+# In config/initializers/sidekiq.rb
+Sidekiq.configure_server do |config|
+  config.server_middleware { |chain| chain.add RunningJobs }
+  SidekiqMonitor.start
+end
+&lt;/code&gt;&lt;/pre&gt;
 
 &lt;ul&gt;
-&lt;li&gt;We set a &lt;strong&gt;soft timeout threshold&lt;/strong&gt; in our app logic.&lt;/li&gt;
-&lt;li&gt;If a job exceeds that threshold, we &lt;strong&gt;manually restart&lt;/strong&gt; the Sidekiq process.&lt;/li&gt;
-&lt;li&gt;When Sidekiq requeues the job after the restart, we &lt;strong&gt;detect&lt;/strong&gt; that it’s a repeat offender.&lt;/li&gt;
-&lt;li&gt;At the start of the job execution, we check its input and &lt;strong&gt;move it to the quarantine queue&lt;/strong&gt; if needed—&lt;strong&gt;before it does any real work&lt;/strong&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Kubernetes (or Systemd) watches &lt;code class="prettyprint"&gt;tmp/sidekiq_unhealthy&lt;/code&gt; and gracefully restarts the process.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;On restart, our &lt;code class="prettyprint"&gt;LongRunningJobInterceptor&lt;/code&gt; (from step 2) reroutes any job that previously ran too long into the quarantine queue.&lt;/p&gt;&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;p&gt;This lets us:&lt;/p&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
 
-&lt;ul&gt;
-&lt;li&gt;Prevent cascading failures.&lt;/li&gt;
-&lt;li&gt;Preserve cleanup logic.&lt;/li&gt;
-&lt;li&gt;Debug bad jobs in isolation.&lt;/li&gt;
-&lt;/ul&gt;
+&lt;p&gt;By combining:&lt;/p&gt;
 
-&lt;h2 id="key-takeaways"&gt;Key Takeaways&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;Client-side queue rerouting (for future enqueues),&lt;/li&gt;
+&lt;li&gt;Server-side interception (for jobs requeued on shutdown), and&lt;/li&gt;
+&lt;li&gt;Automated health monitoring with liveness probes,&lt;/li&gt;
+&lt;/ol&gt;
 
-&lt;ul&gt;
-&lt;li&gt;A single bad job &lt;strong&gt;shouldn’t&lt;/strong&gt; be allowed to bring down your app.&lt;/li&gt;
-&lt;li&gt;A &lt;strong&gt;quarantine queue&lt;/strong&gt; gives you visibility, safety, and a path to resolution.&lt;/li&gt;
-&lt;li&gt;Sometimes, letting a job restart &lt;em&gt;intentionally&lt;/em&gt; is the best move—if you&amp;#39;re prepared to catch it the second time.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;hr/&gt;
-
-&lt;p&gt;Having a quarantine strategy in your Sidekiq setup is like having an airlock in your spaceship. You isolate the threat before it spreads—and keep the rest of your system breathing easy.&lt;/p&gt;
+&lt;p&gt;you can ensure that one rogue Sidekiq job never brings down your entire background pipeline.&lt;/p&gt;
 </content>
   </entry>
   <entry>
