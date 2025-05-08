@@ -1,6 +1,6 @@
 ---
 
-title: The sidekiq quarantine queue 
+title: How to Shield Your App from a Rogue Sidekiq Job 
 date: 2025-04-08 19:46 UTC
 tags: rails, sidekiq
 
