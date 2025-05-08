@@ -10,11 +10,11 @@
     <name>Blog Author</name>
   </author>
   <entry>
-    <title>The sidekiq quarantine queue</title>
+    <title>How to Shield Your App from a Rogue Sidekiq Job</title>
     <link rel="alternate" href="http://blog.url.com/2025/04/08/sidekiq-long-running-job.html"/>
     <id>http://blog.url.com/2025/04/08/sidekiq-long-running-job.html</id>
     <published>2025-04-08T21:46:00+02:00</published>
-    <updated>2025-05-08T16:16:32+02:00</updated>
+    <updated>2025-05-08T16:17:02+02:00</updated>
     <author>
       <name>Article Author</name>
     </author>
