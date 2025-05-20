@@ -1,5 +1,5 @@
 | <!doctype html>
-html
+html class="h-full"
   head
     meta[charset="utf-8"]
     meta[http-equiv="X-UA-Compatible" content="ie=edge"]
@@ -13,7 +13,22 @@ html
     link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css"
     link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.css"
 
-  body
-    = partial "fragments/nav"
-    div class="p-12"
+  body class="h-full flex flex-col"
+    header
+      nav class="p-12 bg-gray-100"
+        = link_to "/index.html" do
+          span class="font-serif text-2xl font-semibold whitespace-nowrap text-gray-800" gaultier.dev
+        div
+          ul class="flex gap-4 mt-8 text-gray-800"
+            li = link_to "Home", "/"
+            li = link_to "About", "/about"
+
+
+    main class="flex-1 p-12"
       = yield
+
+    footer
+      nav class="bg-gray-100 p-12"
+        div
+          ul class="flex gap-4 mt-8 text-gray-800"
+            li = link_to "rss", "/feed.xml"
