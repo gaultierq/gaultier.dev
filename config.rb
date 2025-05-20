@@ -3,6 +3,11 @@
 
 require 'slim'
 
+set :site_url, "https://gaultier.dev"
+set :site_title, "Personal Blog"                     # site title for <title> meta tag
+set :site_description, "Personal Blog"                     # site title for <title> meta tag
+set :trailing_slash, false
+
 activate :autoprefixer do |prefix|
   prefix.browsers = "last 2 versions"
 end

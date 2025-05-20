@@ -1,24 +1,28 @@
-xml.instruct!
-xml.feed "xmlns" => "http://www.w3.org/2005/Atom" do
-  site_url = "http://blog.url.com/"
-  xml.title "Blog Name"
-  xml.subtitle "Blog subtitle"
-  xml.id URI.join(site_url, blog.options.prefix.to_s)
-  xml.link "href" => URI.join(site_url, blog.options.prefix.to_s)
-  xml.link "href" => URI.join(site_url, current_page.path), "rel" => "self"
-  xml.updated(blog.articles.first.date.to_time.iso8601) unless blog.articles.empty?
-  xml.author { xml.name "Blog Author" }
+site_url   = config.site_url
+title      = config.site_title
+desc       = config.site_description
 
-  blog.articles[0..5].each do |article|
-    xml.entry do
-      xml.title article.title
-      xml.link "rel" => "alternate", "href" => URI.join(site_url, article.url)
-      xml.id URI.join(site_url, article.url)
-      xml.published article.date.to_time.iso8601
-      xml.updated File.mtime(article.source_file).iso8601
-      xml.author { xml.name "Article Author" }
-      # xml.summary article.summary, "type" => "html"
-      xml.content article.body, "type" => "html"
+# All posts in reverse‑chronological order
+posts = blog.articles.sort_by(&:date).reverse
+
+xml.instruct! :xml, version: '1.0', encoding: 'utf-8'
+xml.rss version: "2.0", "xmlns:atom" => "http://www.w3.org/2005/Atom" do
+ xml.channel do
+ xml.title title
+ xml.link site_url
+ xml.description desc
+ xml.language    'en-us'
+ xml.lastBuildDate(posts.first.date.to_time.rfc2822) if posts.any?
+ xml.tag!("atom:link", href: "#{site_url}/feed.xml", rel: "self", type: "application/rss+xml")
+
+ posts.each do |post|
+ xml.item do
+ xml.guid        "#{site_url}#{post.url}"
+ xml.link        "#{site_url}#{post.url}"
+ xml.title post.data.title
+ xml.pubDate post.date.to_time.rfc2822
+ xml.description post.data.description
+      end
     end
   end
 end
