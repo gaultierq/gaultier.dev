@@ -30,8 +30,8 @@
 <h3 id="1-moving-jobs-to-the-quarantine-queue-manually">1. Moving jobs to the quarantine queue manually</h3>
 
 <p>We begin by intercepting job enqueuing and swapping their queue name if they match an ENV-driven “quarantine” list:</p>
-
-<pre><code class="prettyprint lang-ruby">class QuarantineMiddleware
+<div class="not-prose">
+  <pre><code class="language-ruby">class QuarantineMiddleware
   def call(worker, job, queue, redis_pool)
     if ENV.fetch(&#39;QUARANTINED_JOBS&#39;, &#39;&#39;).split(&#39;;&#39;).include?(job[&#39;class&#39;])
       job[&#39;queue&#39;] = &#39;quarantine&#39;
@@ -44,6 +44,7 @@ Sidekiq.configure_client do |config|
   config.client_middleware { |chain| chain.add QuarantineMiddleware }
 end
 </code></pre>
+</div>
 
 <p>Set
 <code class="prettyprint">
@@ -56,8 +57,8 @@ to start shunting those jobs into quarantine.</p>
 <h3 id="2-handling-infinite-loops-on-restart">2. Handling Infinite Loops on Restart</h3>
 
 <p>That client middleware only works on new enqueues; it can’t catch jobs Sidekiq auto-requeues on shutdown. To trap long-running jobs after a pod restart, we use a server middleware:</p>
-
-<pre><code class="prettyprint lang-ruby">class LongRunningJobInterceptor
+<div class="not-prose">
+  <pre><code class="language-ruby">class LongRunningJobInterceptor
   QUARANTINE_QUEUE = &#39;quarantine&#39;
 
   def call(worker, job, queue)
@@ -98,6 +99,7 @@ Sidekiq.configure_server do |config|
   config.server_middleware { |chain| chain.add LongRunningJobInterceptor }
 end
 </code></pre>
+</div>
 
 <p>Now, whenever you restart Sidekiq, any job that had been running “too long” automatically moves into your quarantine queue instead of clogging default or critical queues.</p>
 
@@ -125,8 +127,8 @@ Let’s watch for runaway jobs and trigger a graceful process restart.</p>
 <li>Flag the Sidekiq process as unhealthy (e.g. by touching a file).</li>
 <li>Let Kubernetes or Systemd detect the unhealthy marker and recycle the pod or service.</li>
 </ol>
-
-<pre><code class="prettyprint lang-ruby">class SidekiqMonitor
+<div class="not-prose">
+  <pre><code class="language-ruby">class SidekiqMonitor
   HEALTH_FILE = Rails.root.join(&#39;tmp/sidekiq_unhealthy&#39;).freeze
 
   def self.start
@@ -165,6 +167,7 @@ Sidekiq.configure_server do |config|
   SidekiqMonitor.start
 end
 </code></pre>
+</div>
 
 <ul>
 <li><p>Kubernetes (or Systemd) watches <code class="prettyprint">tmp/sidekiq_unhealthy</code> and gracefully restarts the process.</p></li>

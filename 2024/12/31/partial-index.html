@@ -60,7 +60,8 @@ Using the production data wasn&#39;t feasible, I had to create some sample data.
 
 <p>In this section I will <span data-expand="docker_postgres_17" class="expander">setup a local postgres</span> and generate some random data using a sql query. I need to generate enough data to have the issue arise.</p>
 
-<div class='hidden' id='docker_postgres_17'><pre><code class="prettyprint lang-bash">docker run --platform linux/arm64 \
+<div class='hidden' id='docker_postgres_17'><div class="not-prose">
+  <pre><code class="language-bash">docker run --platform linux/arm64 \
   --name postgres17 \
   -e POSTGRES_USER=postgres \
   -e POSTGRES_DB=partial_blog \
@@ -71,11 +72,14 @@ Using the production data wasn&#39;t feasible, I had to create some sample data.
 </code></pre>
 </div>
 
+<p></div></p>
+
 <ol>
 <li><span data-expand="create_messages" class="expander">create the messages table and some indexes</span></li>
 </ol>
 
-<div class='hidden' id='create_messages'><pre><code class="prettyprint lang-sql">DROP TABLE IF EXISTS messages ;
+<div class='hidden' id='create_messages'><div class="not-prose">
+  <pre><code class="language-sql">DROP TABLE IF EXISTS messages ;
 
 CREATE TABLE messages (
     id SERIAL PRIMARY KEY,           
@@ -95,6 +99,8 @@ CREATE INDEX idx_messages_abusive_reviewed ON messages (is_abusive, is_spam, is_
 </code></pre>
 </div>
 
+<p></div></p>
+
 <p>Now that my postgres db is up an running, it’s time to populate my <code class="prettyprint">messages</code> table with some data. To do that we will use a sql script, that will generate 10 millions messages.</p>
 
 <p>I decided to generate messages with the following spread :</p>
@@ -111,8 +117,8 @@ CREATE INDEX idx_messages_abusive_reviewed ON messages (is_abusive, is_spam, is_
 
 <div class='hidden' id='data_set1'><ul>
 <li><p>sql</p>
-
-<pre><code class="prettyprint lang-sql">TRUNCATE messages;
+<div class="not-prose">
+  <pre><code class="language-sql">TRUNCATE messages;
 
 WITH existing_max_id AS (
     SELECT
@@ -150,7 +156,8 @@ random_data AS (
     FROM
         random_data;
 
-</code></pre></li>
+</code></pre>
+</div></li>
 </ul>
 </div>
 
@@ -159,8 +166,8 @@ random_data AS (
 <p><span data-expand="create_messages1" class="expander">Populate with some data: 1% of abusive messages</span></p>
 
 <div class='hidden' id='create_messages1'><p>My first approach was pretty naive:</p>
-
-<pre><code class="prettyprint lang-sql">WITH existing_max_id AS (
+<div class="not-prose">
+  <pre><code class="language-sql">WITH existing_max_id AS (
     SELECT COALESCE(MAX(id), 0) AS max_id FROM messages 
 ),
 random_data AS (
@@ -198,6 +205,8 @@ FROM random_data;
 </code></pre>
 </div>
 
+<p></div></p>
+
 <p>When we to try to retrieve the abusive which hasn’t been reviewed yet, we notice the query is pretty fast: 30ms.
 Let’s find out what is going on here, by explaining the query plan.
 It appears that postgres only had to examine only 189k rows.</p>
@@ -214,7 +223,8 @@ It appears that postgres only had to examine only 189k rows.</p>
 <li>Query plan when there is 1 abusive message every  1 million and 20 millions messages ⇒ 400ms</li>
 </ul>
 
-<div class='hidden' id='query_plan_1_every_1_million'><pre><code class="prettyprint lang-bash">
+<div class='hidden' id='query_plan_1_every_1_million'><div class="not-prose">
+  <pre><code class="language-bash">
     Limit  (cost=371054.44..371054.45 rows=1 width=80) (actual time=368.576..370.384 rows=5 loops=1)
       Output: id, created_at, updated_at, author_id, content, abusive, reviewed
       Buffers: shared hit=192 read=286529
@@ -254,6 +264,8 @@ It appears that postgres only had to examine only 189k rows.</p>
 </code></pre>
 </div>
 
+<p></div></p>
+
 <p>We reach our goal: generating a dataset that will let the performance issue arise.</p>
 
 <h2 id="experiment-analyse">Experiment - analyse</h2>
@@ -279,11 +291,12 @@ It appears that postgres only had to examine only 189k rows.</p>
 <h3 id="experiment-2-partial-index">Experiment 2:  partial index</h3>
 
 <p>A partial index is a specialised index that will only index some rows matching a filter.</p>
-
-<pre><code class="prettyprint lang-sql">CREATE INDEX messages_needing_review_idx
+<div class="not-prose">
+  <pre><code class="language-sql">CREATE INDEX messages_needing_review_idx
 ON messages (id, created_at)
 WHERE is_abusive = TRUE or is_spam = TRUE;
 </code></pre>
+</div>
 
 <p>This index focuses only on rows which are <code class="prettyprint">is_abusive = TRUE</code> or <code class="prettyprint">is_spam = TRUE</code></p>
 
@@ -294,21 +307,23 @@ WHERE is_abusive = TRUE or is_spam = TRUE;
 <p>It look like we have a serious candidate  for our performance issue.</p>
 
 <hr/>
-
-<pre><code class="prettyprint lang-sql">-&gt; Index Scan using messages_needing_review_idx on messages (cost=0.28..1798.15 rows=802 width=83)
+<div class="not-prose">
+  <pre><code class="language-sql">-&gt; Index Scan using messages_needing_review_idx on messages (cost=0.28..1798.15 rows=802 width=83)
 </code></pre>
+</div>
 
 <hr/>
 
 <h3 id="implementation-in-rails">Implementation in rails</h3>
 
 <p>Now that we have found an index definition that helped us improving our query, let’s add it to our production database. It’s pretty easy, rails migration DSL can already handle partial indexes :</p>
-
-<pre><code class="prettyprint lang-rb">    add_index :messages, [ :id, :created_at ],
+<div class="not-prose">
+  <pre><code class="language-rb">    add_index :messages, [ :id, :created_at ],
               where: &quot;is_abusive = TRUE or is_spam = TRUE&quot;,
               name: &quot;messages_needing_review_idx&quot;,
               algorithm: :concurrently
 </code></pre>
+</div>
 
 <p>The all magic happens in the <code class="prettyprint">where</code> clause. The index will be written to only when the filter condition is true.</p>
 
@@ -320,11 +335,12 @@ WHERE is_abusive = TRUE or is_spam = TRUE;
 Consequently, this could lead to the same issue resurfacing in the future. 
 I want to ensure that future developers, using this query will consistently hit the index. 
 I added a spec checking if the query planner keeps using the partial index in the future. Adding a postgres view may be another step torward the coupling of the index with the query.</p>
-
-<pre><code class="prettyprint lang-ruby">  it &quot;uses the partial index&quot; do
+<div class="not-prose">
+  <pre><code class="language-ruby">  it &quot;uses the partial index&quot; do
     expect(query.explain).to include(&#39;Index Scan Backward using messages_needing_review_idx on messages&#39;)
   end
 </code></pre>
+</div>
 
 <hr/>
 
