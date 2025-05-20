@@ -2,7 +2,7 @@
 
 title: Self DDOS-ing with long-running requests and Nginx 
 date: 2025-01-11 17:59 UTC
-tags: 
+tags: rails, nginx, kubernetes
 
 ---
 

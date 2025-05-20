@@ -29,4 +29,14 @@ class MyCustomRenderer < Middleman::Renderers::MiddlemanRedcarpetHTML
 
     document
   end
+
+  def block_code(code, language)
+    lang_class = language ? "language-#{language}" : ""
+    <<~HTML
+      <div class="not-prose">
+        <pre><code class="#{lang_class}">#{ERB::Util.html_escape(code)}</code></pre>
+      </div>
+    HTML
+  end
+
 end
