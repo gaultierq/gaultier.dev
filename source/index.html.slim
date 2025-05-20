@@ -3,13 +3,17 @@ main class="prose lg:prose-xl prose-code:before:hidden prose-code:after:hidden p
   ul
     - blog.articles[0...10].each do |article|
       li = link_to article.title, article
-      span = article.date.strftime('%b %e')
-  / h2.text-3xl.font-serif.font-semibold Tags
-  / ol
-  /   - blog.tags.each do |tag, articles|
-  /     li = link_to "#{tag} (#{articles.size})", tag_path(tag)
-  / h2.text-3xl.font-serif.font-semibold By Year
-  / ol
-  /   - blog.articles.group_by { |a| a.date.year }.each do |year, articles|
-  /     li = link_to "#{year} (#{articles.size})", blog_year_path(year)
+      span.text-sm.font-semibold = article.date.strftime('%b %e %Y')
+      span.ml-2
+        - article.tags.each do |tag|
+          span.tag.text-sm.mr-1 = tag
+
+      / h2.text-3xl.font-serif.font-semibold Tags
+      / ol
+      /   - blog.tags.each do |tag, articles|
+      /     li = link_to "#{tag} (#{articles.size})", tag_path(tag)
+      / h2.text-3xl.font-serif.font-semibold By Year
+      / ol
+      /   - blog.articles.group_by { |a| a.date.year }.each do |year, articles|
+      /     li = link_to "#{year} (#{articles.size})", blog_year_path(year)
 
