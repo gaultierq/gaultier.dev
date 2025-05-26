@@ -1,31 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>Personal Blog</title>
+    <title>Quentin Gaultier</title>
     <link>https://gaultier.dev</link>
-    <description>Personal Blog</description>
+    <description>Some stuff I work on</description>
     <language>en-us</language>
-    <lastBuildDate>Tue, 08 Apr 2025 15:46:00 -0400</lastBuildDate>
+    <lastBuildDate>Tue, 08 Apr 2025 19:46:00 +0000</lastBuildDate>
     <atom:link href="https://gaultier.dev/feed.xml" rel="self" type="application/rss+xml"/>
     <item>
       <guid>https://gaultier.dev/2025/04/08/sidekiq-long-running-job.html</guid>
       <link>https://gaultier.dev/2025/04/08/sidekiq-long-running-job.html</link>
       <title>How to Shield Your App from a Rogue Sidekiq Job</title>
-      <pubDate>Tue, 08 Apr 2025 15:46:00 -0400</pubDate>
+      <pubDate>Tue, 08 Apr 2025 19:46:00 +0000</pubDate>
       <description/>
     </item>
     <item>
       <guid>https://gaultier.dev/2025/01/11/how-to-self-ddos-using-nginx-retry-mechanism.html</guid>
       <link>https://gaultier.dev/2025/01/11/how-to-self-ddos-using-nginx-retry-mechanism.html</link>
       <title>Self DDOS-ing with long-running requests and Nginx</title>
-      <pubDate>Sat, 11 Jan 2025 12:59:00 -0500</pubDate>
+      <pubDate>Sat, 11 Jan 2025 17:59:00 +0000</pubDate>
       <description/>
     </item>
     <item>
       <guid>https://gaultier.dev/2024/12/31/partial-index.html</guid>
       <link>https://gaultier.dev/2024/12/31/partial-index.html</link>
       <title>Optimizing PostgreSQL with Partial Indexes in Rails</title>
-      <pubDate>Mon, 30 Dec 2024 19:00:00 -0500</pubDate>
+      <pubDate>Tue, 31 Dec 2024 00:00:00 +0000</pubDate>
       <description/>
     </item>
   </channel>
