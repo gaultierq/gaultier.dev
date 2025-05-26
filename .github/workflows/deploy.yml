@@ -33,6 +33,4 @@ jobs:
 
       - name: Build and publish blog
         run: |
-          bundle exec rake build
-          git status
           bundle exec rake publish
