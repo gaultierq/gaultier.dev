@@ -17,13 +17,14 @@ xml.rss version: "2.0",
   xml.lastBuildDate(posts.first.date.to_time.rfc2822) if posts.any?
   xml.tag!("atom:link", href: "#{site_url}/feed.xml", rel: "self", type: "application/rss+xml")
 
+
   posts.each do |post|
    xml.item do
     xml.guid        "#{site_url}#{post.url}"
     xml.link        "#{site_url}#{post.url}"
     xml.title post.data.title
     xml.pubDate post.date.to_time.rfc2822
-    xml.description post.summary, type: 'html'
+    xml.description post.summary
     xml.tag!("content:encoded") { xml.cdata!(post.body) }
    end
   end
