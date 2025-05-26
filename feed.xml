@@ -12,7 +12,7 @@
       <link>https://gaultier.dev/2025/04/08/sidekiq-long-running-job.html</link>
       <title>How to Shield Your App from a Rogue Sidekiq Job</title>
       <pubDate>Tue, 08 Apr 2025 19:46:00 +0000</pubDate>
-      <description type="html">&lt;h1 id="how-to-shield-your-app-from-a-rogue-sidekiq-job"&gt;How to Shield Your App from a Rogue Sidekiq Job&lt;/h1&gt;
+      <description>&lt;h1 id="how-to-shield-your-app-from-a-rogue-sidekiq-job"&gt;How to Shield Your App from a Rogue Sidekiq Job&lt;/h1&gt;
 
 &lt;p&gt;Sidekiq is great for background processing—but a single misbehaving job (infinite loops, massive data scans, N+1 storms…) can choke your entire pipeline. Restarting Sidekiq only brings the offender right...&lt;/p&gt;</description>
       <content:encoded>
@@ -196,7 +196,7 @@ end
       <link>https://gaultier.dev/2025/01/11/how-to-self-ddos-using-nginx-retry-mechanism.html</link>
       <title>Self DDOS-ing with long-running requests and Nginx</title>
       <pubDate>Sat, 11 Jan 2025 17:59:00 +0000</pubDate>
-      <description type="html">&lt;h1 id="self-ddos-ing-with-long-running-requests-and-nginx"&gt;Self DDOS-ing with long-running requests and Nginx&lt;/h1&gt;
+      <description>&lt;h1 id="self-ddos-ing-with-long-running-requests-and-nginx"&gt;Self DDOS-ing with long-running requests and Nginx&lt;/h1&gt;
 
 &lt;p&gt;What if I told you that a single Nginx setting turned a long running request into a self-DoS?
 That's exactly what happened on our cluster… Here's a breakdown of what happened.&lt;/p&gt;
@@ -273,7 +273,7 @@ However, the Nginx docs revealed that setting this value to 0 actually causes Ng
       <link>https://gaultier.dev/2024/12/31/partial-index.html</link>
       <title>Optimizing PostgreSQL with Partial Indexes in Rails</title>
       <pubDate>Tue, 31 Dec 2024 00:00:00 +0000</pubDate>
-      <description type="html">&lt;h1 id="optimizing-postgresql-with-partial-indexes-in-rails"&gt;Optimizing PostgreSQL with Partial Indexes in Rails&lt;/h1&gt;
+      <description>&lt;h1 id="optimizing-postgresql-with-partial-indexes-in-rails"&gt;Optimizing PostgreSQL with Partial Indexes in Rails&lt;/h1&gt;
 
 &lt;p&gt;When our support team complained that abusive messages took too long to load, I dug into the issue and discovered that a partial index could dramatically improve performance. Here's how I approached...&lt;/p&gt;</description>
       <content:encoded>
