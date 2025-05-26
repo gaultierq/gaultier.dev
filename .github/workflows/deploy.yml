@@ -16,10 +16,19 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.2' # Change this to your Ruby version
+          ruby-version: '3.2' # Adjust if needed
           bundler-cache: true
 
-      - name: Install dependencies
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18' # Adjust if needed
+          cache: 'yarn'
+
+      - name: Install Node.js dependencies
+        run: yarn install
+
+      - name: Install Ruby dependencies
         run: bundle install
 
       - name: Build and publish blog
