@@ -22,3 +22,5 @@ gem "middleman-livereload", "~> 3.4"
 gem "middleman-importmap"
 
 
+
+gem "nokogiri", "~> 1.15"

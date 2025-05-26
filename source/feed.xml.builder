@@ -21,7 +21,8 @@ xml.rss version: "2.0", "xmlns:atom" => "http://www.w3.org/2005/Atom" do
     xml.link        "#{site_url}#{post.url}"
     xml.title post.data.title
     xml.pubDate post.date.to_time.rfc2822
-    xml.description post.data.description
+    xml.summary post.summary, type: 'html'
+    xml.description post.body, type: 'html'
    end
   end
  end

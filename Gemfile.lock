@@ -92,7 +92,11 @@ GEM
       em-websocket (~> 0.5.1)
       middleman-core (>= 3.3)
       rack-livereload (~> 0.3.15)
+    mini_portile2 (2.8.9)
     minitest (5.22.3)
+    nokogiri (1.15.7)
+      mini_portile2 (~> 2.8.2)
+      racc (~> 1.4)
     padrino-helpers (0.15.3)
       i18n (>= 0.6.7, < 2)
       padrino-support (= 0.15.3)
@@ -101,6 +105,7 @@ GEM
     parallel (1.24.0)
     parslet (2.0.0)
     public_suffix (5.0.5)
+    racc (1.8.1)
     rack (2.2.9)
     rack-livereload (0.3.17)
       rack
@@ -140,6 +145,7 @@ DEPENDENCIES
   middleman-gh-pages
   middleman-importmap
   middleman-livereload (~> 3.4)
+  nokogiri (~> 1.15)
   redcarpet (~> 3.6)
   slim (~> 4.0)
   terser (~> 1.1)
