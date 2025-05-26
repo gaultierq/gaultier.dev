@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>Quentin Gaultier</title>
     <link>https://gaultier.dev</link>
@@ -12,31 +12,32 @@
       <link>https://gaultier.dev/2025/04/08/sidekiq-long-running-job.html</link>
       <title>How to Shield Your App from a Rogue Sidekiq Job</title>
       <pubDate>Tue, 08 Apr 2025 19:46:00 +0000</pubDate>
-      <summary type="html">&lt;h1 id="how-to-shield-your-app-from-a-rogue-sidekiq-job"&gt;How to Shield Your App from a Rogue Sidekiq Job&lt;/h1&gt;
-
-&lt;p&gt;Sidekiq is great for background processing—but a single misbehaving job (infinite loops, massive data scans, N+1 storms…) can choke your entire pipeline. Restarting Sidekiq only brings the offender right...&lt;/p&gt;</summary>
       <description type="html">&lt;h1 id="how-to-shield-your-app-from-a-rogue-sidekiq-job"&gt;How to Shield Your App from a Rogue Sidekiq Job&lt;/h1&gt;
 
-&lt;p&gt;Sidekiq is great for background processing—but a single misbehaving job (infinite loops, massive data scans, N+1 storms…) can choke your entire pipeline. Restarting Sidekiq only brings the offender right back. &lt;/p&gt;
+&lt;p&gt;Sidekiq is great for background processing—but a single misbehaving job (infinite loops, massive data scans, N+1 storms…) can choke your entire pipeline. Restarting Sidekiq only brings the offender right...&lt;/p&gt;</description>
+      <content:encoded>
+        <![CDATA[<h1 id="how-to-shield-your-app-from-a-rogue-sidekiq-job">How to Shield Your App from a Rogue Sidekiq Job</h1>
 
-&lt;p&gt;&lt;strong&gt;How do you quarantine a bad job so that it can’t block all your critical work?&lt;/strong&gt;&lt;/p&gt;
+<p>Sidekiq is great for background processing—but a single misbehaving job (infinite loops, massive data scans, N+1 storms…) can choke your entire pipeline. Restarting Sidekiq only brings the offender right back. </p>
 
-&lt;h2 id="a-real-world-incident"&gt;A Real-World Incident&lt;/h2&gt;
+<p><strong>How do you quarantine a bad job so that it can’t block all your critical work?</strong></p>
 
-&lt;p&gt;A user submitted a report with a huge date range—no sanitization—and our &lt;code class="prettyprint"&gt;ReportJob&lt;/code&gt; tried to load terabytes of data. CPU spiked, threads stalled, and everything ground to a halt. Killing and restarting Sidekiq pods simply requeued the same job, and the outage persisted. We needed a way to isolate that single problematic worker.&lt;/p&gt;
+<h2 id="a-real-world-incident">A Real-World Incident</h2>
 
-&lt;h2 id="introducing-a-quarantine-queue"&gt;Introducing a “Quarantine” Queue&lt;/h2&gt;
+<p>A user submitted a report with a huge date range—no sanitization—and our <code class="prettyprint">ReportJob</code> tried to load terabytes of data. CPU spiked, threads stalled, and everything ground to a halt. Killing and restarting Sidekiq pods simply requeued the same job, and the outage persisted. We needed a way to isolate that single problematic worker.</p>
 
-&lt;p&gt;The idea is simple: route suspect jobs into a low-concurrency queue serviced by a dedicated Sidekiq process. They’re still retried, but can’t block your high-priority queues.&lt;/p&gt;
+<h2 id="introducing-a-quarantine-queue">Introducing a “Quarantine” Queue</h2>
 
-&lt;h3 id="1-moving-jobs-to-the-quarantine-queue-manually"&gt;1. Moving jobs to the quarantine queue manually&lt;/h3&gt;
+<p>The idea is simple: route suspect jobs into a low-concurrency queue serviced by a dedicated Sidekiq process. They’re still retried, but can’t block your high-priority queues.</p>
 
-&lt;p&gt;We begin by intercepting job enqueuing and swapping their queue name if they match an ENV-driven “quarantine” list:&lt;/p&gt;
-&lt;div class="not-prose"&gt;
-  &lt;pre&gt;&lt;code class="language-ruby"&gt;class QuarantineMiddleware
+<h3 id="1-moving-jobs-to-the-quarantine-queue-manually">1. Moving jobs to the quarantine queue manually</h3>
+
+<p>We begin by intercepting job enqueuing and swapping their queue name if they match an ENV-driven “quarantine” list:</p>
+<div class="not-prose">
+  <pre><code class="language-ruby">class QuarantineMiddleware
   def call(worker, job, queue, redis_pool)
-    if ENV.fetch(&amp;#39;QUARANTINED_JOBS&amp;#39;, &amp;#39;&amp;#39;).split(&amp;#39;;&amp;#39;).include?(job[&amp;#39;class&amp;#39;])
-      job[&amp;#39;queue&amp;#39;] = &amp;#39;quarantine&amp;#39;
+    if ENV.fetch(&#39;QUARANTINED_JOBS&#39;, &#39;&#39;).split(&#39;;&#39;).include?(job[&#39;class&#39;])
+      job[&#39;queue&#39;] = &#39;quarantine&#39;
     end
     yield
   end
@@ -45,29 +46,29 @@ end
 Sidekiq.configure_client do |config|
   config.client_middleware { |chain| chain.add QuarantineMiddleware }
 end
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+</code></pre>
+</div>
 
-&lt;p&gt;Set
-&lt;code class="prettyprint"&gt;
+<p>Set
+<code class="prettyprint">
 QUARANTINED_JOBS=ReportJob;MegaLoopJob
-&lt;/code&gt;
-to start shunting those jobs into quarantine.&lt;/p&gt;
+</code>
+to start shunting those jobs into quarantine.</p>
 
-&lt;p&gt;&lt;a href="https://www.youtube.com/watch?v=bvdWPGQ8cEA&amp;amp;t=229s"&gt;Inspired by this deep-dive on isolating memory-leak jobs.&lt;/a&gt;.&lt;/p&gt;
+<p><a href="https://www.youtube.com/watch?v=bvdWPGQ8cEA&amp;t=229s">Inspired by this deep-dive on isolating memory-leak jobs.</a>.</p>
 
-&lt;h3 id="2-handling-infinite-loops-on-restart"&gt;2. Handling Infinite Loops on Restart&lt;/h3&gt;
+<h3 id="2-handling-infinite-loops-on-restart">2. Handling Infinite Loops on Restart</h3>
 
-&lt;p&gt;That client middleware only works on new enqueues; it can’t catch jobs Sidekiq auto-requeues on shutdown. To trap long-running jobs after a pod restart, we use a server middleware:&lt;/p&gt;
-&lt;div class="not-prose"&gt;
-  &lt;pre&gt;&lt;code class="language-ruby"&gt;class LongRunningJobInterceptor
-  QUARANTINE_QUEUE = &amp;#39;quarantine&amp;#39;
+<p>That client middleware only works on new enqueues; it can’t catch jobs Sidekiq auto-requeues on shutdown. To trap long-running jobs after a pod restart, we use a server middleware:</p>
+<div class="not-prose">
+  <pre><code class="language-ruby">class LongRunningJobInterceptor
+  QUARANTINE_QUEUE = &#39;quarantine&#39;
 
   def call(worker, job, queue)
-    jid = job[&amp;#39;jid&amp;#39;]
-    if queue != QUARANTINE_QUEUE &amp;amp;&amp;amp; should_quarantine?(jid)
+    jid = job[&#39;jid&#39;]
+    if queue != QUARANTINE_QUEUE &amp;&amp; should_quarantine?(jid)
       # Requeue safely into quarantine
-      worker.class.set(queue: QUARANTINE_QUEUE).perform_async(*job[&amp;#39;args&amp;#39;])
+      worker.class.set(queue: QUARANTINE_QUEUE).perform_async(*job[&#39;args&#39;])
       return
     end
 
@@ -84,60 +85,60 @@ to start shunting those jobs into quarantine.&lt;/p&gt;
   private
 
   def should_quarantine?(jid)
-    start_time = Sidekiq.redis { |r| r.get(&amp;quot;job:#{jid}:started_at&amp;quot;).to_time }
-    (Time.current - start_time) &amp;gt; 1.hour
+    start_time = Sidekiq.redis { |r| r.get(&quot;job:#{jid}:started_at&quot;).to_time }
+    (Time.current - start_time) &gt; 1.hour
   end
 
   def track_start(jid)
-    Sidekiq.redis { |r| r.set(&amp;quot;job:#{jid}:started_at&amp;quot;, Time.current) }
+    Sidekiq.redis { |r| r.set(&quot;job:#{jid}:started_at&quot;, Time.current) }
   end
 
   def untrack(jid)
-    Sidekiq.redis { |r| r.del(&amp;quot;job:#{jid}:started_at&amp;quot;) }
+    Sidekiq.redis { |r| r.del(&quot;job:#{jid}:started_at&quot;) }
   end
 end
 
 Sidekiq.configure_server do |config|
   config.server_middleware { |chain| chain.add LongRunningJobInterceptor }
 end
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+</code></pre>
+</div>
 
-&lt;p&gt;Now, whenever you restart Sidekiq, any job that had been running “too long” automatically moves into your quarantine queue instead of clogging default or critical queues.&lt;/p&gt;
+<p>Now, whenever you restart Sidekiq, any job that had been running “too long” automatically moves into your quarantine queue instead of clogging default or critical queues.</p>
 
-&lt;h3 id="3-automating-detection-restart"&gt;3. Automating Detection &amp;amp; Restart&lt;/h3&gt;
+<h3 id="3-automating-detection-restart">3. Automating Detection &amp; Restart</h3>
 
-&lt;p&gt;Maintaining a list of known bad actors is helpful, but it still leaves you manually updating ENV variables and restarting processes when things go awry. What if we could automate both detection and remediation of runaway jobs?
-Let’s watch for runaway jobs and trigger a graceful process restart.&lt;/p&gt;
+<p>Maintaining a list of known bad actors is helpful, but it still leaves you manually updating ENV variables and restarting processes when things go awry. What if we could automate both detection and remediation of runaway jobs?
+Let’s watch for runaway jobs and trigger a graceful process restart.</p>
 
-&lt;h4 id="3-a-why-not-simple-timeouts"&gt;3.a Why Not Simple Timeouts?&lt;/h4&gt;
+<h4 id="3-a-why-not-simple-timeouts">3.a Why Not Simple Timeouts?</h4>
 
-&lt;p&gt;Some teams rely on hard timeouts (&lt;code class="prettyprint"&gt;Sidekiq::JobTimeout&lt;/code&gt;) or even OS-level kills. Unfortunately, these can:&lt;/p&gt;
+<p>Some teams rely on hard timeouts (<code class="prettyprint">Sidekiq::JobTimeout</code>) or even OS-level kills. Unfortunately, these can:</p>
 
-&lt;ul&gt;
-&lt;li&gt;Abort mid-transaction, leaving partial writes or queued messages.&lt;/li&gt;
-&lt;li&gt;Leak resources (DB connections, file handles), causing pool exhaustion.&lt;/li&gt;
-&lt;/ul&gt;
+<ul>
+<li>Abort mid-transaction, leaving partial writes or queued messages.</li>
+<li>Leak resources (DB connections, file handles), causing pool exhaustion.</li>
+</ul>
 
-&lt;h4 id="3-b-soft-timeout-monitoring"&gt;3.b Soft Timeout Monitoring&lt;/h4&gt;
+<h4 id="3-b-soft-timeout-monitoring">3.b Soft Timeout Monitoring</h4>
 
-&lt;p&gt;Instead of killing the job mid-flight, let’s signal our orchestrator to restart the entire Sidekiq process, then quarantine repeat offenders on the next run.&lt;/p&gt;
+<p>Instead of killing the job mid-flight, let’s signal our orchestrator to restart the entire Sidekiq process, then quarantine repeat offenders on the next run.</p>
 
-&lt;ol&gt;
-&lt;li&gt;Track job start times in a shared registry.&lt;/li&gt;
-&lt;li&gt;Periodically scan for jobs exceeding a configurable threshold (e.g. 2 minutes).&lt;/li&gt;
-&lt;li&gt;Flag the Sidekiq process as unhealthy (e.g. by touching a file).&lt;/li&gt;
-&lt;li&gt;Let Kubernetes or Systemd detect the unhealthy marker and recycle the pod or service.&lt;/li&gt;
-&lt;/ol&gt;
-&lt;div class="not-prose"&gt;
-  &lt;pre&gt;&lt;code class="language-ruby"&gt;class SidekiqMonitor
-  HEALTH_FILE = Rails.root.join(&amp;#39;tmp/sidekiq_unhealthy&amp;#39;).freeze
+<ol>
+<li>Track job start times in a shared registry.</li>
+<li>Periodically scan for jobs exceeding a configurable threshold (e.g. 2 minutes).</li>
+<li>Flag the Sidekiq process as unhealthy (e.g. by touching a file).</li>
+<li>Let Kubernetes or Systemd detect the unhealthy marker and recycle the pod or service.</li>
+</ol>
+<div class="not-prose">
+  <pre><code class="language-ruby">class SidekiqMonitor
+  HEALTH_FILE = Rails.root.join(&#39;tmp/sidekiq_unhealthy&#39;).freeze
 
   def self.start
-    Thread.new(name: &amp;#39;sidekiq-monitor&amp;#39;) do
+    Thread.new(name: &#39;sidekiq-monitor&#39;) do
       loop do
         RunningJobs.list.each do |job|
-          if Time.current - job[:started_at] &amp;gt; 2.minutes
+          if Time.current - job[:started_at] &gt; 2.minutes
             FileUtils.touch(HEALTH_FILE)
             break
           end
@@ -152,7 +153,7 @@ class RunningJobs
   @jobs = Concurrent::Map.new
 
   def call(worker, job, queue)
-    @jobs[Thread.current.object_id] = { jid: job[&amp;#39;jid&amp;#39;], started_at: Time.current }
+    @jobs[Thread.current.object_id] = { jid: job[&#39;jid&#39;], started_at: Time.current }
     yield
   ensure
     @jobs.delete(Thread.current.object_id)
@@ -168,143 +169,147 @@ Sidekiq.configure_server do |config|
   config.server_middleware { |chain| chain.add RunningJobs }
   SidekiqMonitor.start
 end
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+</code></pre>
+</div>
 
-&lt;ul&gt;
-&lt;li&gt;&lt;p&gt;Kubernetes (or Systemd) watches &lt;code class="prettyprint"&gt;tmp/sidekiq_unhealthy&lt;/code&gt; and gracefully restarts the process.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;On restart, our &lt;code class="prettyprint"&gt;LongRunningJobInterceptor&lt;/code&gt; (from step 2) reroutes any job that previously ran too long into the quarantine queue.&lt;/p&gt;&lt;/li&gt;
-&lt;/ul&gt;
+<ul>
+<li><p>Kubernetes (or Systemd) watches <code class="prettyprint">tmp/sidekiq_unhealthy</code> and gracefully restarts the process.</p></li>
+<li><p>On restart, our <code class="prettyprint">LongRunningJobInterceptor</code> (from step 2) reroutes any job that previously ran too long into the quarantine queue.</p></li>
+</ul>
 
-&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+<h2 id="conclusion">Conclusion</h2>
 
-&lt;p&gt;By combining:&lt;/p&gt;
+<p>By combining:</p>
 
-&lt;ol&gt;
-&lt;li&gt;Client-side queue rerouting (for future enqueues),&lt;/li&gt;
-&lt;li&gt;Server-side interception (for jobs requeued on shutdown), and&lt;/li&gt;
-&lt;li&gt;Automated health monitoring with liveness probes,&lt;/li&gt;
-&lt;/ol&gt;
+<ol>
+<li>Client-side queue rerouting (for future enqueues),</li>
+<li>Server-side interception (for jobs requeued on shutdown), and</li>
+<li>Automated health monitoring with liveness probes,</li>
+</ol>
 
-&lt;p&gt;you can ensure that one rogue Sidekiq job never brings down your entire background pipeline.&lt;/p&gt;
-</description>
+<p>you can ensure that one rogue Sidekiq job never brings down your entire background pipeline.</p>
+]]>
+      </content:encoded>
     </item>
     <item>
       <guid>https://gaultier.dev/2025/01/11/how-to-self-ddos-using-nginx-retry-mechanism.html</guid>
       <link>https://gaultier.dev/2025/01/11/how-to-self-ddos-using-nginx-retry-mechanism.html</link>
       <title>Self DDOS-ing with long-running requests and Nginx</title>
       <pubDate>Sat, 11 Jan 2025 17:59:00 +0000</pubDate>
-      <summary type="html">&lt;h1 id="self-ddos-ing-with-long-running-requests-and-nginx"&gt;Self DDOS-ing with long-running requests and Nginx&lt;/h1&gt;
+      <description type="html">&lt;h1 id="self-ddos-ing-with-long-running-requests-and-nginx"&gt;Self DDOS-ing with long-running requests and Nginx&lt;/h1&gt;
 
 &lt;p&gt;What if I told you that a single Nginx setting turned a long running request into a self-DoS?
 That's exactly what happened on our cluster… Here's a breakdown of what happened.&lt;/p&gt;
 
 &lt;h2 id="the-incident"&gt;The Incident&lt;/h2&gt;
 
-&lt;p&gt;Last...&lt;/p&gt;</summary>
-      <description type="html">&lt;h1 id="self-ddos-ing-with-long-running-requests-and-nginx"&gt;Self DDOS-ing with long-running requests and Nginx&lt;/h1&gt;
+&lt;p&gt;Last...&lt;/p&gt;</description>
+      <content:encoded>
+        <![CDATA[<h1 id="self-ddos-ing-with-long-running-requests-and-nginx">Self DDOS-ing with long-running requests and Nginx</h1>
 
-&lt;p&gt;What if I told you that a single Nginx setting turned a long running request into a self-DoS?
-That&amp;#39;s exactly what happened on our cluster… Here&amp;#39;s a breakdown of what happened.&lt;/p&gt;
+<p>What if I told you that a single Nginx setting turned a long running request into a self-DoS?
+That&#39;s exactly what happened on our cluster… Here&#39;s a breakdown of what happened.</p>
 
-&lt;h2 id="the-incident"&gt;The Incident&lt;/h2&gt;
+<h2 id="the-incident">The Incident</h2>
 
-&lt;p&gt;Last week, our monitoring alerted us to a sudden CPU spike on the database node. The culprit: long-running SQL queries triggered when customers generated PDF reports for their dashboards.&lt;/p&gt;
+<p>Last week, our monitoring alerted us to a sudden CPU spike on the database node. The culprit: long-running SQL queries triggered when customers generated PDF reports for their dashboards.</p>
 
-&lt;p&gt;Instead of enqueueing these tasks as background jobs, our Rails app processed them synchronously within the request lifecycle. Since report generation can take up to 40 minutes, frustrated users refreshed their browsers after a few seconds—triggering new requests and compounding the load.&lt;/p&gt;
+<p>Instead of enqueueing these tasks as background jobs, our Rails app processed them synchronously within the request lifecycle. Since report generation can take up to 40 minutes, frustrated users refreshed their browsers after a few seconds—triggering new requests and compounding the load.</p>
 
-&lt;p&gt;Over time, these repeated attempts exhausted both web and database resources, degrading performance cluster-wide.&lt;/p&gt;
+<p>Over time, these repeated attempts exhausted both web and database resources, degrading performance cluster-wide.</p>
 
-&lt;h2 id="investigation"&gt;Investigation&lt;/h2&gt;
+<h2 id="investigation">Investigation</h2>
 
-&lt;p&gt;I reproduced the issue by generating a report myself. 
+<p>I reproduced the issue by generating a report myself. 
 After about three minutes, my browser returned a 504 Gateway Timeout. 
-Curious about where that timeout lived, I inspected our Nginx Ingress Controller settings and found: &lt;/p&gt;
-&lt;div class="not-prose"&gt;
-  &lt;pre&gt;&lt;code class="language-nginx"&gt;proxy_read_timeout 60s;
+Curious about where that timeout lived, I inspected our Nginx Ingress Controller settings and found: </p>
+<div class="not-prose">
+  <pre><code class="language-nginx">proxy_read_timeout 60s;
 proxy_next_upstream_tries 3;
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+</code></pre>
+</div>
 
-&lt;p&gt;Here’s what happened:&lt;/p&gt;
+<p>Here’s what happened:</p>
 
-&lt;ol&gt;
-&lt;li&gt;A request hits Nginx and is proxied to our Rails app.&lt;/li&gt;
-&lt;li&gt;If no response arrives within 60 seconds, Nginx retries—up to three times.&lt;/li&gt;
-&lt;li&gt;Meanwhile, the Rails process keeps generating the report for its full duration.&lt;/li&gt;
-&lt;li&gt;Frustrated users hit refresh, spawning new requests on top of Nginx’s retries.&lt;/li&gt;
-&lt;/ol&gt;
+<ol>
+<li>A request hits Nginx and is proxied to our Rails app.</li>
+<li>If no response arrives within 60 seconds, Nginx retries—up to three times.</li>
+<li>Meanwhile, the Rails process keeps generating the report for its full duration.</li>
+<li>Frustrated users hit refresh, spawning new requests on top of Nginx’s retries.</li>
+</ol>
 
-&lt;p&gt;The result? Each report could be processed 3 times per user refresh, quickly overwhelming the cluster.&lt;/p&gt;
+<p>The result? Each report could be processed 3 times per user refresh, quickly overwhelming the cluster.</p>
 
-&lt;h2 id="the-fix"&gt;The Fix&lt;/h2&gt;
+<h2 id="the-fix">The Fix</h2>
 
-&lt;p&gt;While moving report generation to a background job remains the long-term solution, we needed a quick mitigation to prevent another CPU spike.
-We decided to deactivate Nginx’s retry logic temporarily. By reducing tries from three to none, we could immediately cut the redundant load by two-thirds.&lt;/p&gt;
-&lt;div class="not-prose"&gt;
-  &lt;pre&gt;&lt;code class="language-yaml"&gt;# Ingress annotations
-nginx.ingress.kubernetes.io/proxy-next-upstream-tries: &amp;quot;1&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+<p>While moving report generation to a background job remains the long-term solution, we needed a quick mitigation to prevent another CPU spike.
+We decided to deactivate Nginx’s retry logic temporarily. By reducing tries from three to none, we could immediately cut the redundant load by two-thirds.</p>
+<div class="not-prose">
+  <pre><code class="language-yaml"># Ingress annotations
+nginx.ingress.kubernetes.io/proxy-next-upstream-tries: &quot;1&quot;
+</code></pre>
+</div>
 
-&lt;h2 id="bonus-a-cautionary-ai-tale"&gt;Bonus: a Cautionary AI Tale&lt;/h2&gt;
+<h2 id="bonus-a-cautionary-ai-tale">Bonus: a Cautionary AI Tale</h2>
 
-&lt;p&gt;Eager for a quick fix, I turned to ChatGPT for advice. 
-It confidently recommended &lt;code class="prettyprint"&gt;proxy_next_upstream_tries: 0&lt;/code&gt;, which I assumed would disable retries completely.
-However, the Nginx docs revealed that setting this value to 0 actually causes Nginx to retry the request infinitely every 60 seconds. The change sent our CPU usage through the roof until I reverted the Helm chart.&lt;/p&gt;
+<p>Eager for a quick fix, I turned to ChatGPT for advice. 
+It confidently recommended <code class="prettyprint">proxy_next_upstream_tries: 0</code>, which I assumed would disable retries completely.
+However, the Nginx docs revealed that setting this value to 0 actually causes Nginx to retry the request infinitely every 60 seconds. The change sent our CPU usage through the roof until I reverted the Helm chart.</p>
 
-&lt;h2 id="next-steps"&gt;Next Steps&lt;/h2&gt;
+<h2 id="next-steps">Next Steps</h2>
 
-&lt;ul&gt;
-&lt;li&gt;Asynchronous Processing: Refactor report generation into background jobs with progress notifications.&lt;/li&gt;
-&lt;li&gt;Timeouts and Circuit Breakers: Implement application-level timeouts to fail fast.&lt;/li&gt;
-&lt;li&gt;User Feedback: Show a progress indicator and prevent manual refreshes during long-running tasks.&lt;/li&gt;
-&lt;/ul&gt;
+<ul>
+<li>Asynchronous Processing: Refactor report generation into background jobs with progress notifications.</li>
+<li>Timeouts and Circuit Breakers: Implement application-level timeouts to fail fast.</li>
+<li>User Feedback: Show a progress indicator and prevent manual refreshes during long-running tasks.</li>
+</ul>
 
-&lt;p&gt;This incident reinforced how a small misconfiguration in Nginx can amplify inherent flaws in application design. A careful read of documentation and a temporary tweak saved us from another spike—while we work on the long-term fix.&lt;/p&gt;
-</description>
+<p>This incident reinforced how a small misconfiguration in Nginx can amplify inherent flaws in application design. A careful read of documentation and a temporary tweak saved us from another spike—while we work on the long-term fix.</p>
+]]>
+      </content:encoded>
     </item>
     <item>
       <guid>https://gaultier.dev/2024/12/31/partial-index.html</guid>
       <link>https://gaultier.dev/2024/12/31/partial-index.html</link>
       <title>Optimizing PostgreSQL with Partial Indexes in Rails</title>
       <pubDate>Tue, 31 Dec 2024 00:00:00 +0000</pubDate>
-      <summary type="html">&lt;h1 id="optimizing-postgresql-with-partial-indexes-in-rails"&gt;Optimizing PostgreSQL with Partial Indexes in Rails&lt;/h1&gt;
-
-&lt;p&gt;When our support team complained that abusive messages took too long to load, I dug into the issue and discovered that a partial index could dramatically improve performance. Here's how I approached...&lt;/p&gt;</summary>
       <description type="html">&lt;h1 id="optimizing-postgresql-with-partial-indexes-in-rails"&gt;Optimizing PostgreSQL with Partial Indexes in Rails&lt;/h1&gt;
 
-&lt;p&gt;When our support team complained that abusive messages took too long to load, I dug into the issue and discovered that a partial index could dramatically improve performance. Here&amp;#39;s how I approached the problem and implemented a fix using Rails and PostgreSQL.&lt;/p&gt;
+&lt;p&gt;When our support team complained that abusive messages took too long to load, I dug into the issue and discovered that a partial index could dramatically improve performance. Here's how I approached...&lt;/p&gt;</description>
+      <content:encoded>
+        <![CDATA[<h1 id="optimizing-postgresql-with-partial-indexes-in-rails">Optimizing PostgreSQL with Partial Indexes in Rails</h1>
 
-&lt;h2 id="the-problem"&gt;The Problem&lt;/h2&gt;
+<p>When our support team complained that abusive messages took too long to load, I dug into the issue and discovered that a partial index could dramatically improve performance. Here&#39;s how I approached the problem and implemented a fix using Rails and PostgreSQL.</p>
 
-&lt;blockquote&gt;
-&lt;p&gt;We run a messaging app where users can report abusive messages. Our support team regularly reviews flagged content, but the admin page showing unreviewed abusive messages was slow—it took over 20 seconds to load.&lt;/p&gt;
-&lt;/blockquote&gt;
+<h2 id="the-problem">The Problem</h2>
 
-&lt;h2 id="debugging-strategy"&gt;Debugging Strategy&lt;/h2&gt;
+<blockquote>
+<p>We run a messaging app where users can report abusive messages. Our support team regularly reviews flagged content, but the admin page showing unreviewed abusive messages was slow—it took over 20 seconds to load.</p>
+</blockquote>
 
-&lt;p&gt;To fix the issue, I followed a standard performance workflow:&lt;/p&gt;
+<h2 id="debugging-strategy">Debugging Strategy</h2>
 
-&lt;ol&gt;
-&lt;li&gt;Confirm there&amp;#39;s a problem&lt;/li&gt;
-&lt;li&gt;Reproduce it locally&lt;/li&gt;
-&lt;li&gt;Analyze and experiment with possible fixes&lt;/li&gt;
-&lt;li&gt;Implement the best one&lt;/li&gt;
-&lt;li&gt;Measure the result&lt;/li&gt;
-&lt;/ol&gt;
+<p>To fix the issue, I followed a standard performance workflow:</p>
 
-&lt;h2 id="confirm-the-problem"&gt;Confirm the Problem&lt;/h2&gt;
+<ol>
+<li>Confirm there&#39;s a problem</li>
+<li>Reproduce it locally</li>
+<li>Analyze and experiment with possible fixes</li>
+<li>Implement the best one</li>
+<li>Measure the result</li>
+</ol>
 
-&lt;p&gt;Logs showed that most of the time was spent on a single SQL query. I &lt;strong&gt;added custom logging&lt;/strong&gt; to isolate it and monitor improvements later.
-Adding the right metrics early in the process is important — it ensures that any optimization efforts can be validated effectively. &lt;/p&gt;
+<h2 id="confirm-the-problem">Confirm the Problem</h2>
 
-&lt;h2 id="reproduce-locally"&gt;Reproduce Locally&lt;/h2&gt;
+<p>Logs showed that most of the time was spent on a single SQL query. I <strong>added custom logging</strong> to isolate it and monitor improvements later.
+Adding the right metrics early in the process is important — it ensures that any optimization efforts can be validated effectively. </p>
 
-&lt;p&gt;I couldn&amp;#39;t use the production dataset — it was 1TB. So I created a synthetic dataset using &lt;span data-expand="docker_postgres_17" class="expander"&gt;Docker&lt;/span&gt; and SQL.&lt;/p&gt;
+<h2 id="reproduce-locally">Reproduce Locally</h2>
 
-&lt;div class='hidden' id='docker_postgres_17'&gt;&lt;div class="not-prose"&gt;
-  &lt;pre&gt;&lt;code class="language-bash"&gt;docker run --platform linux/arm64 \
+<p>I couldn&#39;t use the production dataset — it was 1TB. So I created a synthetic dataset using <span data-expand="docker_postgres_17" class="expander">Docker</span> and SQL.</p>
+
+<div class='hidden' id='docker_postgres_17'><div class="not-prose">
+  <pre><code class="language-bash">docker run --platform linux/arm64 \
   --name postgres17 \
   -e POSTGRES_USER=postgres \
   -e POSTGRES_DB=partial_blog \
@@ -312,12 +317,12 @@ Adding the right metrics early in the process is important — it ensures that a
   -p 5417:5432 \
   -d postgres:17
 
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+</code></pre>
+</div>
 
-&lt;p&gt;&lt;/div&gt;&lt;/p&gt;
-&lt;div class="not-prose"&gt;
-  &lt;pre&gt;&lt;code class="language-sql"&gt;CREATE TABLE messages (
+<p></div></p>
+<div class="not-prose">
+  <pre><code class="language-sql">CREATE TABLE messages (
   id SERIAL PRIMARY KEY,
   created_at TIMESTAMP NOT NULL,
   updated_at TIMESTAMP NOT NULL,
@@ -332,102 +337,103 @@ Adding the right metrics early in the process is important — it ensures that a
 CREATE INDEX idx_messages_abusive_reviewed
   ON messages (is_abusive, is_spam, is_reviewed, is_archived);
 
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+</code></pre>
+</div>
 
-&lt;h2 id="generate-realistic-data"&gt;Generate Realistic Data&lt;/h2&gt;
+<h2 id="generate-realistic-data">Generate Realistic Data</h2>
 
-&lt;p&gt;Initially, I generated 10M messages where:&lt;/p&gt;
+<p>Initially, I generated 10M messages where:</p>
 
-&lt;ul&gt;
-&lt;li&gt;1 in 10,000 were abusive&lt;/li&gt;
-&lt;li&gt;1 in 100,000 were spam&lt;/li&gt;
-&lt;li&gt;20% were archived&lt;/li&gt;
-&lt;li&gt;50% of abusive messages were reviewed&lt;/li&gt;
-&lt;/ul&gt;
+<ul>
+<li>1 in 10,000 were abusive</li>
+<li>1 in 100,000 were spam</li>
+<li>20% were archived</li>
+<li>50% of abusive messages were reviewed</li>
+</ul>
 
-&lt;p&gt;With this setup, the query ran fast (30ms), because PostgreSQL found matching rows quickly. But this didn&amp;#39;t reflect production behavior.&lt;/p&gt;
+<p>With this setup, the query ran fast (30ms), because PostgreSQL found matching rows quickly. But this didn&#39;t reflect production behavior.</p>
 
-&lt;p&gt;So I made the data sparser — 1 abusive message per 1 million rows—and now the query took 250–400ms. Much more realistic.&lt;/p&gt;
+<p>So I made the data sparser — 1 abusive message per 1 million rows—and now the query took 250–400ms. Much more realistic.</p>
 
-&lt;h2 id="analyze"&gt;Analyze&lt;/h2&gt;
+<h2 id="analyze">Analyze</h2>
 
-&lt;p&gt;PostgreSQL wasn&amp;#39;t using any indexes for the query:&lt;/p&gt;
-&lt;div class="not-prose"&gt;
-  &lt;pre&gt;&lt;code class="language-sql"&gt;SELECT * FROM messages
+<p>PostgreSQL wasn&#39;t using any indexes for the query:</p>
+<div class="not-prose">
+  <pre><code class="language-sql">SELECT * FROM messages
 WHERE is_abusive = TRUE AND is_reviewed = FALSE
 ORDER BY created_at DESC LIMIT 5;
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+</code></pre>
+</div>
 
-&lt;p&gt;Why? Because boolean fields have low cardinality, so PostgreSQL skipped existing indexes and performed a full sequential scan.&lt;/p&gt;
+<p>Why? Because boolean fields have low cardinality, so PostgreSQL skipped existing indexes and performed a full sequential scan.</p>
 
-&lt;h2 id="experimenting-with-indexes"&gt;Experimenting with Indexes&lt;/h2&gt;
+<h2 id="experimenting-with-indexes">Experimenting with Indexes</h2>
 
-&lt;h3 id="experiment-1-composite-index-on-booleans"&gt;Experiment 1: Composite Index on Booleans&lt;/h3&gt;
-&lt;div class="not-prose"&gt;
-  &lt;pre&gt;&lt;code class="language-sql"&gt;CREATE INDEX idx_all_booleans
+<h3 id="experiment-1-composite-index-on-booleans">Experiment 1: Composite Index on Booleans</h3>
+<div class="not-prose">
+  <pre><code class="language-sql">CREATE INDEX idx_all_booleans
   ON messages (is_abusive, is_spam, is_reviewed, is_archived);
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+</code></pre>
+</div>
 
-&lt;p&gt;No effect. Postgres still used a sequential scan due to low selectivity.&lt;/p&gt;
+<p>No effect. Postgres still used a sequential scan due to low selectivity.</p>
 
-&lt;h3 id="experiment-2-partial-index"&gt;Experiment 2: Partial Index&lt;/h3&gt;
-&lt;div class="not-prose"&gt;
-  &lt;pre&gt;&lt;code class="language-sql"&gt;CREATE INDEX messages_needing_review_idx
+<h3 id="experiment-2-partial-index">Experiment 2: Partial Index</h3>
+<div class="not-prose">
+  <pre><code class="language-sql">CREATE INDEX messages_needing_review_idx
   ON messages (id, created_at)
   WHERE is_abusive = TRUE OR is_spam = TRUE;
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+</code></pre>
+</div>
 
-&lt;p&gt;This index only includes rows that actually need reviewing.
+<p>This index only includes rows that actually need reviewing.
 Result: Query time dropped to 5ms. That’s a 30x improvement.
-PostgreSQL now used an index scan:&lt;/p&gt;
-&lt;div class="not-prose"&gt;
-  &lt;pre&gt;&lt;code class="language-sql"&gt;-&amp;gt; Index Scan using messages_needing_review_idx ...
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+PostgreSQL now used an index scan:</p>
+<div class="not-prose">
+  <pre><code class="language-sql">-&gt; Index Scan using messages_needing_review_idx ...
+</code></pre>
+</div>
 
-&lt;h2 id="rails-implementation"&gt;Rails Implementation&lt;/h2&gt;
+<h2 id="rails-implementation">Rails Implementation</h2>
 
-&lt;p&gt;Rails supports partial indexes natively:&lt;/p&gt;
-&lt;div class="not-prose"&gt;
-  &lt;pre&gt;&lt;code class="language-rb"&gt;add_index :messages, [:id, :created_at],
-          name: &amp;quot;messages_needing_review_idx&amp;quot;,
-          where: &amp;quot;is_abusive = TRUE OR is_spam = TRUE&amp;quot;,
+<p>Rails supports partial indexes natively:</p>
+<div class="not-prose">
+  <pre><code class="language-rb">add_index :messages, [:id, :created_at],
+          name: &quot;messages_needing_review_idx&quot;,
+          where: &quot;is_abusive = TRUE OR is_spam = TRUE&quot;,
           algorithm: :concurrently
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+</code></pre>
+</div>
 
-&lt;p&gt;The all magic happens in the &lt;code class="prettyprint"&gt;where&lt;/code&gt; clause. The index will be written to only when the filter condition is true.&lt;/p&gt;
+<p>The all magic happens in the <code class="prettyprint">where</code> clause. The index will be written to only when the filter condition is true.</p>
 
-&lt;h2 id="measure-consolidate"&gt;Measure &amp;amp; consolidate&lt;/h2&gt;
+<h2 id="measure-consolidate">Measure &amp; consolidate</h2>
 
-&lt;p&gt;I reran the query in production and confirmed that performance was fixed.&lt;/p&gt;
+<p>I reran the query in production and confirmed that performance was fixed.</p>
 
-&lt;p&gt;To future-proof this, I added a test to ensure the query planner continues to use our index:&lt;/p&gt;
-&lt;div class="not-prose"&gt;
-  &lt;pre&gt;&lt;code class="language-ruby"&gt;  it &amp;quot;uses the partial index&amp;quot; do
-    expect(query.explain).to include(&amp;#39;Index Scan using messages_needing_review_idx&amp;#39;)
+<p>To future-proof this, I added a test to ensure the query planner continues to use our index:</p>
+<div class="not-prose">
+  <pre><code class="language-ruby">  it &quot;uses the partial index&quot; do
+    expect(query.explain).to include(&#39;Index Scan using messages_needing_review_idx&#39;)
   end
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
+</code></pre>
+</div>
 
-&lt;p&gt;You might also consider creating a PostgreSQL view to lock the query shape to the index.&lt;/p&gt;
+<p>You might also consider creating a PostgreSQL view to lock the query shape to the index.</p>
 
-&lt;h3 id="a-word-of-caution"&gt;A Word of Caution&lt;/h3&gt;
+<h3 id="a-word-of-caution">A Word of Caution</h3>
 
-&lt;ul&gt;
-&lt;li&gt;Partial indexes only help if the filter condition matches exactly.&lt;/li&gt;
-&lt;li&gt;They also increase write overhead (as any index), so use them only when needed.&lt;/li&gt;
-&lt;/ul&gt;
+<ul>
+<li>Partial indexes only help if the filter condition matches exactly.</li>
+<li>They also increase write overhead (as any index), so use them only when needed.</li>
+</ul>
 
-&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+<h2 id="conclusion">Conclusion</h2>
 
-&lt;p&gt;In summary, creating a partial index on my &lt;code class="prettyprint"&gt;messages&lt;/code&gt; table significantly improved query performance.
-This one optimization took our query from 400ms to 5ms.&lt;/p&gt;
-</description>
+<p>In summary, creating a partial index on my <code class="prettyprint">messages</code> table significantly improved query performance.
+This one optimization took our query from 400ms to 5ms.</p>
+]]>
+      </content:encoded>
     </item>
   </channel>
 </rss>
