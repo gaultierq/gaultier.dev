@@ -24,7 +24,7 @@
     <item>
       <guid>https://gaultier.dev/2024/12/31/partial-index.html</guid>
       <link>https://gaultier.dev/2024/12/31/partial-index.html</link>
-      <title>Using Partial Indexes in Rails</title>
+      <title>Optimizing PostgreSQL with Partial Indexes in Rails</title>
       <pubDate>Mon, 30 Dec 2024 19:00:00 -0500</pubDate>
       <description/>
     </item>

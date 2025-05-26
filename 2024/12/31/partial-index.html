@@ -13,52 +13,36 @@
   type="module"
   src="../../../javascripts/site.js"
 ></script>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" rel="stylesheet" /><link href="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.css" rel="stylesheet" /></head><body class="h-full flex flex-col"><header><nav class="p-12 bg-gray-100"><a href="../../../"><span class="font-serif text-2xl font-semibold whitespace-nowrap text-gray-800">gaultier.dev</span></a><div><ul class="flex gap-4 mt-8 text-gray-800"><li><a href="/">Home</a></li><li><a href="/about">About</a></li><li><a href="/links">Links</a></li></ul></div></nav></header><main class="flex-1 p-12"><div data-controller="lol"><article class="prose prose-code:before:hidden prose-code:after:hidden prose-headings:font-serif js-toc-content" data-controller="tocbot highlightjs" data-lol-target="source"><h3 id="introduction">Introduction</h3>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" rel="stylesheet" /><link href="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.css" rel="stylesheet" /></head><body class="h-full flex flex-col"><header><nav class="p-12 bg-gray-100"><a href="../../../"><span class="font-serif text-2xl font-semibold whitespace-nowrap text-gray-800">gaultier.dev</span></a><div><ul class="flex gap-4 mt-8 text-gray-800"><li><a href="/">Home</a></li><li><a href="/about">About</a></li><li><a href="/links">Links</a></li></ul></div></nav></header><main class="flex-1 p-12"><div data-controller="lol"><article class="prose prose-code:before:hidden prose-code:after:hidden prose-headings:font-serif js-toc-content" data-controller="tocbot highlightjs" data-lol-target="source"><h1 id="optimizing-postgresql-with-partial-indexes-in-rails">Optimizing PostgreSQL with Partial Indexes in Rails</h1>
 
-<p>In this post, I will share the insights I gained and the steps I followed to optimize the performance of a PostgreSQL query on a large table by creating a partial index.</p>
+<p>When our support team complained that abusive messages took too long to load, I dug into the issue and discovered that a partial index could dramatically improve performance. Here&#39;s how I approached the problem and implemented a fix using Rails and PostgreSQL.</p>
 
-<p>I was working on improving the speed of a query while keeping my database lightweight and efficient, and I found partial indexing to be an effective solution.</p>
-
-<h3 id="use-case">Use case</h3>
+<h2 id="the-problem">The Problem</h2>
 
 <blockquote>
-<p>Let’s assume we are running a messaging app where <code class="prettyprint">users</code> can send messages to each others. On some occasions, our AI detection will flag some flags are <code class="prettyprint">abusive</code> and our support team need to review these messages.
-Support team complains the list of abusive message they need to review takes a lot of time to load.</p>
+<p>We run a messaging app where users can report abusive messages. Our support team regularly reviews flagged content, but the admin page showing unreviewed abusive messages was slow—it took over 20 seconds to load.</p>
 </blockquote>
 
-<p><strong>Methodology</strong></p>
+<h2 id="debugging-strategy">Debugging Strategy</h2>
 
-<p>My approach to resolve this issue is the same it would be like fixing any performance bug:</p>
+<p>To fix the issue, I followed a standard performance workflow:</p>
 
 <ol>
-<li>Confirm there is a issue - measure</li>
-<li>re-produce the problem in a consistent way on my local machine</li>
-<li>analyse, experiment, and implement</li>
-<li>deploy</li>
-<li>Check the benefit - measure.</li>
+<li>Confirm there&#39;s a problem</li>
+<li>Reproduce it locally</li>
+<li>Analyze and experiment with possible fixes</li>
+<li>Implement the best one</li>
+<li>Measure the result</li>
 </ol>
 
-<p>The more challenging difficulty lies in step 2: being able to work locally.<br/>
-Fixing a performance issue without measuring is a mistake: often, your intuition will be wrong, and you will optimise the wrong thing.</p>
+<h2 id="confirm-the-problem">Confirm the Problem</h2>
 
-<p>So lets go !</p>
+<p>Logs showed that most of the time was spent on a single SQL query. I <strong>added custom logging</strong> to isolate it and monitor improvements later.
+Adding the right metrics early in the process is important — it ensures that any optimization efforts can be validated effectively. </p>
 
-<h2 id="confirm">Confirm</h2>
+<h2 id="reproduce-locally">Reproduce Locally</h2>
 
-<p>Confirming there was a problem was pretty easy. By navigating to the page using the query, I could easily verify that a loader is displayed for 20 seconds.  </p>
-
-<p>And a quick look at our logs and I could already see that most of the time was spend in sql.</p>
-
-<p>At this point, I decided to add an extra log to production, to narrow down to the exact problematic query. This way, we can verify later that whatever optimization we came up with actually had some effect.</p>
-
-<h2 id="finding-a-way-to-make-the-bug-appear-in-local">Finding a way to make the bug appear in local</h2>
-
-<p>The simplest and most effective approach would have been to copy the production data to my disk and work from that. However, the <code class="prettyprint">messages</code> table is approximately 1TB (and without partitioning), with several indexes exceeding 100GB each. 
-Using the production data wasn&#39;t feasible, I had to create some sample data.</p>
-
-<h3 id="setting-up-my-local-database">Setting up my local database</h3>
-
-<p>In this section I will <span data-expand="docker_postgres_17" class="expander">setup a local postgres</span> and generate some random data using a sql query. I need to generate enough data to have the issue arise.</p>
+<p>I couldn&#39;t use the production dataset — it was 1TB. So I created a synthetic dataset using <span data-expand="docker_postgres_17" class="expander">Docker</span> and SQL.</p>
 
 <div class='hidden' id='docker_postgres_17'><div class="not-prose">
   <pre><code class="language-bash">docker run --platform linux/arm64 \
@@ -73,255 +57,87 @@ Using the production data wasn&#39;t feasible, I had to create some sample data.
 </div>
 
 <p></div></p>
-
-<ol>
-<li><span data-expand="create_messages" class="expander">create the messages table and some indexes</span></li>
-</ol>
-
-<div class='hidden' id='create_messages'><div class="not-prose">
-  <pre><code class="language-sql">DROP TABLE IF EXISTS messages ;
-
-CREATE TABLE messages (
-    id SERIAL PRIMARY KEY,           
-    created_at TIMESTAMP NOT NULL,   
-    updated_at TIMESTAMP NOT NULL,   
-    author_id INTEGER NOT NULL,      
-    content TEXT NOT NULL,           
-    is_abusive BOOLEAN NOT NULL,        -- Whether the message is abusive
-    is_spam  BOOLEAN NOT NULL,
-    is_reviewed BOOLEAN NOT NULL,       -- Whether the message has been reviewed by support team
-    is_archived BOOLEAN NOT NULL
+<div class="not-prose">
+  <pre><code class="language-sql">CREATE TABLE messages (
+  id SERIAL PRIMARY KEY,
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL,
+  author_id INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  is_abusive BOOLEAN NOT NULL,
+  is_spam BOOLEAN NOT NULL,
+  is_reviewed BOOLEAN NOT NULL,
+  is_archived BOOLEAN NOT NULL
 );
 
-CREATE INDEX idx_messages_created_at ON messages (created_at);
-CREATE INDEX idx_messages_author_created_at ON messages (author_id, created_at);
-CREATE INDEX idx_messages_abusive_reviewed ON messages (is_abusive, is_spam, is_reviewed, is_archived);
-</code></pre>
-</div>
-
-<p></div></p>
-
-<p>Now that my postgres db is up an running, it’s time to populate my <code class="prettyprint">messages</code> table with some data. To do that we will use a sql script, that will generate 10 millions messages.</p>
-
-<p>I decided to generate messages with the following spread :</p>
-
-<h3 id="dataset-configuration-1"><span data-expand="data_set1" class="expander">dataset configuration #1</span></h3>
-
-<p><code class="prettyprint">is_abusive</code> : 1 in 10,000</p>
-
-<p><code class="prettyprint">is_spam</code> : 1 in 100,000</p>
-
-<p><code class="prettyprint">is_archived</code> : 20%</p>
-
-<p><code class="prettyprint">is_reviewed</code> : 50% of those needing review</p>
-
-<div class='hidden' id='data_set1'><ul>
-<li><p>sql</p>
-<div class="not-prose">
-  <pre><code class="language-sql">TRUNCATE messages;
-
-WITH existing_max_id AS (
-    SELECT
-        coalesce(max(id), 0) AS max_id
-    FROM
-        messages
-),
-random_data AS (
-    SELECT
-        (existing_max_id.max_id + row_number() OVER ()) AS id,
-        now() - INTERVAL &#39;2 months&#39; + (gs * INTERVAL &#39;40 seconds&#39;) AS created_at,
-        (random() &lt; 0.0001) AS is_abusive,
-        (random() &lt; 0.00001) AS is_spam,
-        (random() &lt; 0.2) AS is_archived,
-        &#39;Generated content: &#39; || substring(md5(random()::text) || md5(random()::text)
-    FROM 1 FOR (10 + (random() * 50)::int)) AS content -- Random content size
-    FROM
-        generate_series(1, 10000000) AS gs,
-        existing_max_id)
-    INSERT INTO messages (id, created_at, updated_at, author_id, content, is_abusive, is_spam, is_reviewed, is_archived)
-    SELECT
-        id,
-        created_at,
-        created_at AS updated_at,
-        id % 100 + 1 AS author_id, -- Example: author_id based on id (modify as needed)
-        content,
-        is_abusive,
-        is_spam,
-        CASE WHEN (is_abusive OR is_spam) THEN
-            (random() &lt; 0.5) -- 50% of abusive have been reviewed
-        ELSE
-            FALSE -- Always false if not abusive
-        END AS is_reviewed,
-        is_archived
-    FROM
-        random_data;
-
-</code></pre>
-</div></li>
-</ul>
-</div>
-
-<p>On my recent laptop it takes about a minute to populate.</p>
-
-<p><span data-expand="create_messages1" class="expander">Populate with some data: 1% of abusive messages</span></p>
-
-<div class='hidden' id='create_messages1'><p>My first approach was pretty naive:</p>
-<div class="not-prose">
-  <pre><code class="language-sql">WITH existing_max_id AS (
-    SELECT COALESCE(MAX(id), 0) AS max_id FROM messages 
-),
-random_data AS (
-    SELECT 
-        (existing_max_id.max_id + row_number() OVER ()) AS id,  
-        NOW() - INTERVAL &#39;2 months&#39; + (gs * INTERVAL &#39;40 seconds&#39;) AS created_at,
-        (random() &lt; 0.01) AS abusive,  -- 1% chance of being abusive
-        CASE 
-            WHEN (random() &lt; 0.01) THEN (random() &lt; 0.5)  -- 50% of abusive have been reviewed
-            ELSE FALSE  -- Always false if not abusive
-        END AS reviewed,
-        &#39;Generated content: &#39; || substring(md5(random()::text) || md5(random()::text) FROM 1 FOR (10 + (random() * 50)::int)) AS content  -- Random content size
-    FROM generate_series(1, 10000000) AS gs,
-         existing_max_id
-)
-INSERT INTO messages (
-    id,
-    created_at,
-    updated_at,
-    author_id,
-    content,
-    abusive,
-    reviewed
-)
-SELECT 
-    id,
-    created_at,
-    created_at AS updated_at,
-    id % 100 + 1 AS author_id,  -- Example: author_id based on id (modify as needed)
-    content,
-    abusive,
-    reviewed
-FROM random_data;
+CREATE INDEX idx_messages_abusive_reviewed
+  ON messages (is_abusive, is_spam, is_reviewed, is_archived);
 
 </code></pre>
 </div>
 
-<p></div></p>
+<h2 id="generate-realistic-data">Generate Realistic Data</h2>
 
-<p>When we to try to retrieve the abusive which hasn’t been reviewed yet, we notice the query is pretty fast: 30ms.
-Let’s find out what is going on here, by explaining the query plan.
-It appears that postgres only had to examine only 189k rows.</p>
-
-<p>That’s because my created data has “too many” errors row, postgres will find the 100 rows very quickly, and doesn’t need to examine too much data.</p>
-
-<h3 id="dataset-configuration-2">dataset  configuration #2</h3>
-
-<p>So I decided to make the data a lot more sparse, and went for 1 abusive  message  every 1 million (instead of 1 every 100).</p>
-
-<p>And now, running the query takes a lot more time: around 250ms. And remember, my test database is around 2GB when my production database is 1TB.</p>
+<p>Initially, I generated 10M messages where:</p>
 
 <ul>
-<li>Query plan when there is 1 abusive message every  1 million and 20 millions messages ⇒ 400ms</li>
+<li>1 in 10,000 were abusive</li>
+<li>1 in 100,000 were spam</li>
+<li>20% were archived</li>
+<li>50% of abusive messages were reviewed</li>
 </ul>
 
-<div class='hidden' id='query_plan_1_every_1_million'><div class="not-prose">
-  <pre><code class="language-bash">
-    Limit  (cost=371054.44..371054.45 rows=1 width=80) (actual time=368.576..370.384 rows=5 loops=1)
-      Output: id, created_at, updated_at, author_id, content, abusive, reviewed
-      Buffers: shared hit=192 read=286529
-      -&gt;  Sort  (cost=371054.44..371054.45 rows=1 width=80) (actual time=363.242..365.050 rows=5 loops=1)
-            Output: id, created_at, updated_at, author_id, content, abusive, reviewed
-            Sort Key: messages.created_at DESC
-            Sort Method: quicksort  Memory: 26kB
-            Buffers: shared hit=192 read=286529
-            -&gt;  Gather  (cost=1000.00..371054.43 rows=1 width=80) (actual time=111.675..365.023 rows=8 loops=1)
-                  Output: id, created_at, updated_at, author_id, content, abusive, reviewed
-                  Workers Planned: 2
-                  Workers Launched: 2
-                  Buffers: shared hit=192 read=286529
-                  -&gt;  Parallel Seq Scan on public.messages  (cost=0.00..370054.33 rows=1 width=80) (actual time=135.916..342.357 rows=3 loops=3)
-                        Output: id, created_at, updated_at, author_id, content, abusive, reviewed
-                        Filter: (messages.abusive AND (NOT messages.reviewed))
-                        Rows Removed by Filter: 6666664
-                        Buffers: shared hit=192 read=286529
-                        Worker 0:  actual time=3.828..332.174 rows=4 loops=1
-                          JIT:
-                            Functions: 2
-                            Options: Inlining false, Optimization false, Expressions true, Deforming true
-                            Timing: Generation 0.143 ms (Deform 0.099 ms), Inlining 0.000 ms, Optimization 0.165 ms, Emission 2.848 ms, Total 3.157 ms
-                          Buffers: shared hit=65 read=102685
-                        Worker 1:  actual time=292.653..332.188 rows=1 loops=1
-                          JIT:
-                            Functions: 2
-                            Options: Inlining false, Optimization false, Expressions true, Deforming true
-                            Timing: Generation 0.134 ms (Deform 0.079 ms), Inlining 0.000 ms, Optimization 0.172 ms, Emission 2.849 ms, Total 3.154 ms
-                          Buffers: shared hit=64 read=102368
-    Planning Time: 0.177 ms
-    JIT:
-      Functions: 7
-      Options: Inlining false, Optimization false, Expressions true, Deforming true
-      Timing: Generation 0.820 ms (Deform 0.448 ms), Inlining 0.000 ms, Optimization 0.701 ms, Emission 10.675 ms, Total 12.196 ms
-    Execution Time: 371.023 ms
+<p>With this setup, the query ran fast (30ms), because PostgreSQL found matching rows quickly. But this didn&#39;t reflect production behavior.</p>
+
+<p>So I made the data sparser — 1 abusive message per 1 million rows—and now the query took 250–400ms. Much more realistic.</p>
+
+<h2 id="analyze">Analyze</h2>
+
+<p>PostgreSQL wasn&#39;t using any indexes for the query:</p>
+<div class="not-prose">
+  <pre><code class="language-sql">SELECT * FROM messages
+WHERE is_abusive = TRUE AND is_reviewed = FALSE
+ORDER BY created_at DESC LIMIT 5;
 </code></pre>
 </div>
 
-<p></div></p>
+<p>Why? Because boolean fields have low cardinality, so PostgreSQL skipped existing indexes and performed a full sequential scan.</p>
 
-<p>We reach our goal: generating a dataset that will let the performance issue arise.</p>
+<h2 id="experimenting-with-indexes">Experimenting with Indexes</h2>
 
-<h2 id="experiment-analyse">Experiment - analyse</h2>
+<h3 id="experiment-1-composite-index-on-booleans">Experiment 1: Composite Index on Booleans</h3>
+<div class="not-prose">
+  <pre><code class="language-sql">CREATE INDEX idx_all_booleans
+  ON messages (is_abusive, is_spam, is_reviewed, is_archived);
+</code></pre>
+</div>
 
-<p>In the previous section, we noticed that data scarcity has a significant impact on performance. But what causes this? What’s going on?</p>
+<p>No effect. Postgres still used a sequential scan due to low selectivity.</p>
 
-<p>In both scenarios, the query planner is not using any index, leading it to examine each row sequentially until it identifies 100 rows that meet our filter criteria. Once it finds those 100 rows, it stops and returns the results.</p>
-
-<p>In the first scenario, where the sample data contains a high number of <code class="prettyprint">abusive = TRUE</code> rows, PostgreSQL can still locate the relevant rows relatively quickly, albeit inefficiently.</p>
-
-<p>On the opposite, in the second scenario, where there is only one matching row for every million, PostgreSQL must scan nearly the entire database to retrieve just five rows, which takes considerably more time.</p>
-
-<p>Before moving on, I want to copy the database we obtained earlier, especially since we’ll be experimenting with creating indexes and other modifications. This approach allows me to establish a clear reference for my tests: one database reflecting the existing issues and another focused on performance optimisation.</p>
-
-<h3 id="experiment-1-add-every-booleans-in-an-index">Experiment 1: add every booleans in an index</h3>
-
-<p>A first idea would be to create missing indexes. In my experience, many performance issues occurring in small to medium sized team are missing indexes. So the first thing I would look for is a column missing an index.</p>
-
-<p>In our case, every column appearing in the filter clause has it’s own index. But what if we had an index covering all the columns ? Let’s try that !</p>
-
-<p>Result: it didn’t help: boolean column cardinality is very low, and index are not optimised for low cardinality. Query planner will not choose this index</p>
-
-<h3 id="experiment-2-partial-index">Experiment 2:  partial index</h3>
-
-<p>A partial index is a specialised index that will only index some rows matching a filter.</p>
+<h3 id="experiment-2-partial-index">Experiment 2: Partial Index</h3>
 <div class="not-prose">
   <pre><code class="language-sql">CREATE INDEX messages_needing_review_idx
-ON messages (id, created_at)
-WHERE is_abusive = TRUE or is_spam = TRUE;
+  ON messages (id, created_at)
+  WHERE is_abusive = TRUE OR is_spam = TRUE;
 </code></pre>
 </div>
 
-<p>This index focuses only on rows which are <code class="prettyprint">is_abusive = TRUE</code> or <code class="prettyprint">is_spam = TRUE</code></p>
-
-<p>The filtering is performed at “write time” when new rows are inserted / updated / deleted.</p>
-
-<p>Now , the query is executed in <code class="prettyprint">5ms</code>  which is  30x faster than the initial query.</p>
-
-<p>It look like we have a serious candidate  for our performance issue.</p>
-
-<hr/>
+<p>This index only includes rows that actually need reviewing.
+Result: Query time dropped to 5ms. That’s a 30x improvement.
+PostgreSQL now used an index scan:</p>
 <div class="not-prose">
-  <pre><code class="language-sql">-&gt; Index Scan using messages_needing_review_idx on messages (cost=0.28..1798.15 rows=802 width=83)
+  <pre><code class="language-sql">-&gt; Index Scan using messages_needing_review_idx ...
 </code></pre>
 </div>
 
-<hr/>
+<h2 id="rails-implementation">Rails Implementation</h2>
 
-<h3 id="implementation-in-rails">Implementation in rails</h3>
-
-<p>Now that we have found an index definition that helped us improving our query, let’s add it to our production database. It’s pretty easy, rails migration DSL can already handle partial indexes :</p>
+<p>Rails supports partial indexes natively:</p>
 <div class="not-prose">
-  <pre><code class="language-rb">    add_index :messages, [ :id, :created_at ],
-              where: &quot;is_abusive = TRUE or is_spam = TRUE&quot;,
-              name: &quot;messages_needing_review_idx&quot;,
-              algorithm: :concurrently
+  <pre><code class="language-rb">add_index :messages, [:id, :created_at],
+          name: &quot;messages_needing_review_idx&quot;,
+          where: &quot;is_abusive = TRUE OR is_spam = TRUE&quot;,
+          algorithm: :concurrently
 </code></pre>
 </div>
 
@@ -329,24 +145,27 @@ WHERE is_abusive = TRUE or is_spam = TRUE;
 
 <h2 id="measure-consolidate">Measure &amp; consolidate</h2>
 
-<p>Running the query in production confirmed our issue was fixed. Using the measure we implemented in the first section was a good confirmation your partial index helped.</p>
+<p>I reran the query in production and confirmed that performance was fixed.</p>
 
-<p>Partial indexes are fragile: if the filter condition changes, the query planner will not be able to utilize them effectively. 
-Consequently, this could lead to the same issue resurfacing in the future. 
-I want to ensure that future developers, using this query will consistently hit the index. 
-I added a spec checking if the query planner keeps using the partial index in the future. Adding a postgres view may be another step torward the coupling of the index with the query.</p>
+<p>To future-proof this, I added a test to ensure the query planner continues to use our index:</p>
 <div class="not-prose">
   <pre><code class="language-ruby">  it &quot;uses the partial index&quot; do
-    expect(query.explain).to include(&#39;Index Scan Backward using messages_needing_review_idx on messages&#39;)
+    expect(query.explain).to include(&#39;Index Scan using messages_needing_review_idx&#39;)
   end
 </code></pre>
 </div>
 
-<hr/>
+<p>You might also consider creating a PostgreSQL view to lock the query shape to the index.</p>
 
-<h3 id="conclusion">Conclusion</h3>
+<h3 id="a-word-of-caution">A Word of Caution</h3>
 
-<p>In summary, creating a partial index on my <code class="prettyprint">messages</code> table significantly improved query performance. </p>
+<ul>
+<li>Partial indexes only help if the filter condition matches exactly.</li>
+<li>They also increase write overhead (as any index), so use them only when needed.</li>
+</ul>
 
-<p>Keep in mind that adding an index  will add write overhead (otherwise we would add indexes for every single query).</p>
+<h2 id="conclusion">Conclusion</h2>
+
+<p>In summary, creating a partial index on my <code class="prettyprint">messages</code> table significantly improved query performance.
+This one optimization took our query from 400ms to 5ms.</p>
 </article><aside class="hidden sm:block fixed w-1/3 fixed right-0 top-0 bottom-0 bg-gray-800"><div class="h-1/3 bg-gray-800"><div class="js-toc text-white p-8"></div><div class="relative"><div class="peer prose dark:prose-invert" data-lol-target="expansion"></div><div class="absolute top-0 right-0 peer-[:empty]:hidden cursor-pointer" data-action="click->lol#clear"><svg class="size-6" fill="none" stroke="white" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"></path></svg></div></div></div></aside></div></main><footer><nav class="bg-gray-100 p-12"><div><ul class="flex gap-4 mt-8 text-gray-800"><li><a href="../../../feed.xml">rss</a></li></ul></div></nav></footer></body></html>
