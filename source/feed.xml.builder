@@ -6,7 +6,9 @@ desc       = config.site_description
 posts = blog.articles.sort_by(&:date).reverse
 
 xml.instruct! :xml, version: '1.0', encoding: 'utf-8'
-xml.rss version: "2.0", "xmlns:atom" => "http://www.w3.org/2005/Atom" do
+xml.rss version: "2.0",
+        "xmlns:atom" => "http://www.w3.org/2005/Atom",
+        "xmlns:content" => "http://purl.org/rss/1.0/modules/content/" do
  xml.channel do
   xml.title title
   xml.link site_url
@@ -21,8 +23,8 @@ xml.rss version: "2.0", "xmlns:atom" => "http://www.w3.org/2005/Atom" do
     xml.link        "#{site_url}#{post.url}"
     xml.title post.data.title
     xml.pubDate post.date.to_time.rfc2822
-    xml.summary post.summary, type: 'html'
-    xml.description post.body, type: 'html'
+    xml.description post.summary, type: 'html'
+    xml.tag!("content:encoded") { xml.cdata!(post.body) }
    end
   end
  end
