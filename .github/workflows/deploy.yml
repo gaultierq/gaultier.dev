@@ -31,6 +31,11 @@ jobs:
       - name: Install Ruby dependencies
         run: bundle install
 
-      - name: Build and publish blog
-        run: |
-          bundle exec rake publish
+      - name: Build Middleman site
+        run: bundle exec middleman build --clean
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build

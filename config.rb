@@ -4,8 +4,8 @@
 require 'slim'
 
 set :site_url, 'https://gaultier.dev'
-set :site_title, 'Personal Blog' # site title for <title> meta tag
-set :site_description, 'Personal Blog' # site title for <title> meta tag
+set :site_title, 'Quentin Gaultier' # site title for <title> meta tag
+set :site_description, 'Some stuff I work on' # site title for <title> meta tag
 set :trailing_slash, false
 
 activate :autoprefixer do |prefix|
