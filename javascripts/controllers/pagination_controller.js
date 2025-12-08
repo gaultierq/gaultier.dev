@@ -39,10 +39,13 @@ export default class extends Controller {
 
   renderBookmark(bookmark) {
     const tags = bookmark.tags || [];
-    bookmark = bookmark.content;  // do this first
-    const title = bookmark.title || "Untitled";
-    const description = bookmark.description;
-    const url = bookmark.url || "#";
+    const content = bookmark.content;
+    const title = content.title || bookmark.title;
+    if (!title) {
+      return null
+    }
+    const description = content.description || "";
+    const url = content.url || "#";
 
     const tagsHtml = tags.map(t => `<span class='text-xs tag'>${t.name}</span>`).join(" ");
 

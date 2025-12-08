@@ -1,0 +1,59 @@
+<!doctype html><html class="h-full"><head><meta charset="utf-8" /><meta content="ie=edge" http-equiv="X-UA-Compatible" /><meta content="width=device-width, initial-scale=1, shrink-to-fit=no" name="viewport" /><title>gaultier.dev</title><link href="../../../images/favicon.ico" rel="icon" type="image/x-icon" /><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="/feed.xml" /><script data-website-id="58e0c11c-be1a-4563-a97f-9005d206fd48" defer="" src="https://umami.canonic.fr/script.js"></script><link href="../../../stylesheets/site.css" rel="stylesheet" /><script type="importmap">
+  {
+  "imports": {
+    "@hotwired/stimulus": "https://unpkg.com/@hotwired/stimulus/dist/stimulus.js",
+    "tocbot": "https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.min.js",
+    "highlight.js": "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/es/highlight.min.js"
+  }
+}
+
+
+</script>
+<script
+  type="module"
+  src="../../../javascripts/site.js"
+></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" rel="stylesheet" /><link href="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.30.0/tocbot.css" rel="stylesheet" /></head><body class="h-full flex flex-col"><header><nav class="p-12 bg-gray-100"><a href="../../../"><span class="font-serif text-2xl font-semibold whitespace-nowrap text-gray-800">gaultier.dev</span></a><div><ul class="flex gap-4 mt-8 text-gray-800"><li><a href="/">Home</a></li><li><a href="/about">About</a></li><li><a href="/links">Links</a></li></ul></div></nav></header><main class="flex-1 p-12"><div data-controller="lol"><article class="prose prose-code:before:hidden prose-code:after:hidden prose-headings:font-serif js-toc-content" data-controller="tocbot highlightjs" data-lol-target="source"><h1 id="transparent-curl-wrapper-for-automated-session-management">Transparent curl Wrapper for Automated Session Management</h1>
+
+<p><strong>TL;DR</strong>: PATH wrapper + shared .curlrc + login script = Claude can test authenticated endpoints without manual auth.</p>
+
+<p>I wanted Claude to test my local web app. Problem: every API endpoint needs authentication. Claude can run curl, but can&#39;t handle interactive login or cookie management. Solution: intercept all curl commands and inject session cookies automatically.</p>
+
+<p>The wrapper script lives in <code class="prettyprint">${project_root}/bin/curl</code> and shadows the system curl via PATH. It delegates to <code class="prettyprint">/usr/bin/curl</code> but injects <code class="prettyprint">-K .curlrc</code> to load shared config:</p>
+<div class="not-prose">
+  <pre><code class="language-bash">#!/bin/sh
+SCRIPT_DIR=&quot;$(cd &quot;$(dirname &quot;$0&quot;)&quot; &amp;&amp; pwd)&quot;
+/usr/bin/curl -K &quot;$SCRIPT_DIR/../.curlrc&quot; &quot;$@&quot;
+</code></pre>
+</div>
+
+<p>The <code class="prettyprint">.curlrc</code> config tells curl to read/write cookies from <code class="prettyprint">./tmp/cookies.txt</code>:</p>
+<div class="not-prose">
+  <pre><code class="">cookie-jar = &quot;./tmp/cookies.txt&quot;
+cookie = &quot;./tmp/cookies.txt&quot;
+location
+</code></pre>
+</div>
+
+<p>A separate login script (<code class="prettyprint">${project_root}/bin/login</code>) handles the bootstrap: fetch login page, extract CSRF token, POST credentials, save session to cookie jar. From that point on, every curl command automatically includes the session cookie.</p>
+
+<p>Add <code class="prettyprint">bin/</code> to PATH via direnv:</p>
+<div class="not-prose">
+  <pre><code class="language-bash"># .envrc
+PATH_add bin
+</code></pre>
+</div>
+
+<p>Now the flow is simple. I run <code class="prettyprint">${project_root}/bin/login admin password</code> once. Claude can immediately test any endpoint:</p>
+<div class="not-prose">
+  <pre><code class="language-bash">curl http://localhost:5001/api/users
+curl -X POST http://localhost:5001/api/sync
+</code></pre>
+</div>
+
+<p>All authenticated, no manual cookie handling. Session persists until app timeout, then re-run login. The cookie jar goes in <code class="prettyprint">.gitignore</code> since it contains active session tokens.</p>
+
+<p>This pattern works for AI e2e testing, CI/CD smoke tests, or just making API docs runnable without auth boilerplate.</p>
+
+<p>Next step: Playwright MCP for full browser automation when curl isn&#39;t enough.</p>
+</article><aside class="hidden sm:block fixed w-1/3 fixed right-0 top-0 bottom-0 bg-gray-800"><div class="h-1/3 bg-gray-800"><div class="js-toc text-white p-8"></div><div class="relative"><div class="peer prose dark:prose-invert" data-lol-target="expansion"></div><div class="absolute top-0 right-0 peer-[:empty]:hidden cursor-pointer" data-action="click->lol#clear"><svg class="size-6" fill="none" stroke="white" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"></path></svg></div></div></div></aside></div></main><footer><nav class="bg-gray-100 p-12"><div><ul class="flex gap-4 mt-8 text-gray-800"><li><a href="../../../feed.xml">rss</a></li></ul></div></nav></footer></body></html>

@@ -5,8 +5,65 @@
     <link>https://gaultier.dev</link>
     <description>Some stuff I work on</description>
     <language>en-us</language>
-    <lastBuildDate>Tue, 08 Apr 2025 19:46:00 +0000</lastBuildDate>
+    <lastBuildDate>Sun, 07 Dec 2025 20:00:00 +0000</lastBuildDate>
     <atom:link href="https://gaultier.dev/feed.xml" rel="self" type="application/rss+xml"/>
+    <item>
+      <guid>https://gaultier.dev/2025/12/07/transparent-curl-wrapper-automated-session-management.html</guid>
+      <link>https://gaultier.dev/2025/12/07/transparent-curl-wrapper-automated-session-management.html</link>
+      <title>Transparent curl Wrapper for Automated Session Management</title>
+      <pubDate>Sun, 07 Dec 2025 20:00:00 +0000</pubDate>
+      <description>&lt;h1 id="transparent-curl-wrapper-for-automated-session-management"&gt;Transparent curl Wrapper for Automated Session Management&lt;/h1&gt;
+
+&lt;p&gt;&lt;strong&gt;TL;DR&lt;/strong&gt;: PATH wrapper + shared .curlrc + login script = Claude can test authenticated endpoints without manual auth.&lt;/p&gt;
+
+&lt;p&gt;I wanted Claude to test my local web app. Problem: every API endpoint needs...&lt;/p&gt;</description>
+      <content:encoded>
+        <![CDATA[<h1 id="transparent-curl-wrapper-for-automated-session-management">Transparent curl Wrapper for Automated Session Management</h1>
+
+<p><strong>TL;DR</strong>: PATH wrapper + shared .curlrc + login script = Claude can test authenticated endpoints without manual auth.</p>
+
+<p>I wanted Claude to test my local web app. Problem: every API endpoint needs authentication. Claude can run curl, but can&#39;t handle interactive login or cookie management. Solution: intercept all curl commands and inject session cookies automatically.</p>
+
+<p>The wrapper script lives in <code class="prettyprint">${project_root}/bin/curl</code> and shadows the system curl via PATH. It delegates to <code class="prettyprint">/usr/bin/curl</code> but injects <code class="prettyprint">-K .curlrc</code> to load shared config:</p>
+<div class="not-prose">
+  <pre><code class="language-bash">#!/bin/sh
+SCRIPT_DIR=&quot;$(cd &quot;$(dirname &quot;$0&quot;)&quot; &amp;&amp; pwd)&quot;
+/usr/bin/curl -K &quot;$SCRIPT_DIR/../.curlrc&quot; &quot;$@&quot;
+</code></pre>
+</div>
+
+<p>The <code class="prettyprint">.curlrc</code> config tells curl to read/write cookies from <code class="prettyprint">./tmp/cookies.txt</code>:</p>
+<div class="not-prose">
+  <pre><code class="">cookie-jar = &quot;./tmp/cookies.txt&quot;
+cookie = &quot;./tmp/cookies.txt&quot;
+location
+</code></pre>
+</div>
+
+<p>A separate login script (<code class="prettyprint">${project_root}/bin/login</code>) handles the bootstrap: fetch login page, extract CSRF token, POST credentials, save session to cookie jar. From that point on, every curl command automatically includes the session cookie.</p>
+
+<p>Add <code class="prettyprint">bin/</code> to PATH via direnv:</p>
+<div class="not-prose">
+  <pre><code class="language-bash"># .envrc
+PATH_add bin
+</code></pre>
+</div>
+
+<p>Now the flow is simple. I run <code class="prettyprint">${project_root}/bin/login admin password</code> once. Claude can immediately test any endpoint:</p>
+<div class="not-prose">
+  <pre><code class="language-bash">curl http://localhost:5001/api/users
+curl -X POST http://localhost:5001/api/sync
+</code></pre>
+</div>
+
+<p>All authenticated, no manual cookie handling. Session persists until app timeout, then re-run login. The cookie jar goes in <code class="prettyprint">.gitignore</code> since it contains active session tokens.</p>
+
+<p>This pattern works for AI e2e testing, CI/CD smoke tests, or just making API docs runnable without auth boilerplate.</p>
+
+<p>Next step: Playwright MCP for full browser automation when curl isn&#39;t enough.</p>
+]]>
+      </content:encoded>
+    </item>
     <item>
       <guid>https://gaultier.dev/2025/04/08/sidekiq-long-running-job.html</guid>
       <link>https://gaultier.dev/2025/04/08/sidekiq-long-running-job.html</link>
