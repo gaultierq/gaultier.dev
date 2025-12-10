@@ -51,8 +51,8 @@ PATH_add bin
 
 <p>Now the flow is simple. I run <code class="prettyprint">${project_root}/bin/login admin password</code> once. Claude can immediately test any endpoint:</p>
 <div class="not-prose">
-  <pre><code class="language-bash">curl http://localhost:5001/api/users
-curl -X POST http://localhost:5001/api/sync
+  <pre><code class="language-bash">curl http://localhost:5000/api/users
+curl -X POST http://localhost:5000/api/sync
 </code></pre>
 </div>
 
