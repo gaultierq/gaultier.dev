@@ -41,12 +41,13 @@ PATH_add bin
 Now the flow is simple. I run `${project_root}/bin/login admin password` once. Claude can immediately test any endpoint:
 
 ```bash
-curl http://localhost:5001/api/users
-curl -X POST http://localhost:5001/api/sync
+curl http://localhost:5000/api/users
+curl -X POST http://localhost:5000/api/sync
 ```
 
 All authenticated, no manual cookie handling. Session persists until app timeout, then re-run login. The cookie jar goes in `.gitignore` since it contains active session tokens.
 
 This pattern works for AI e2e testing, CI/CD smoke tests, or just making API docs runnable without auth boilerplate.
+
 
 Next step: Playwright MCP for full browser automation when curl isn't enough.
