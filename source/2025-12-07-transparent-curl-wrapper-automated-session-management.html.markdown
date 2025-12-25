@@ -1,53 +1,89 @@
 ---
 
-title: Transparent curl Wrapper for Automated Session Management
+title: Testing authenticated endpoints with Claude
 date: 2025-12-07 20:00 UTC
-tags: curl, testing, authentication, devops
+tags: claude, tip
 toc: false
 
 ---
 
-# Transparent curl Wrapper for Automated Session Management
+# Testing authenticated endpoints with Claude
 
-**TL;DR**: PATH wrapper + shared .curlrc + login script = Claude can test authenticated endpoints without manual auth.
+<div class="tldr">
+<strong>TL;DR</strong>: I wrap curl and share a cookie jar so Claude can test authenticated endpoints without interactive login.
+</div>
 
-I wanted Claude to test my local web app. Problem: every API endpoint needs authentication. Claude can run curl, but can't handle interactive login or cookie management. Solution: intercept all curl commands and inject session cookies automatically.
+While working on a backend app, I wanted Claude to be able to **test the API it’s implementing**.
 
-The wrapper script lives in `${project_root}/bin/curl` and shadows the system curl via PATH. It delegates to `/usr/bin/curl` but injects `-K .curlrc` to load shared config:
+Most endpoints are authenticated. Claude can run `curl`, but it can’t log in interactively or keep cookies across commands. That means it gets stuck as soon as auth is involved.
+
+The trick is to log in once as a human, persist the session cookies, and make every curl call reuse them.
+
+## Wrap curl
+
+I shadow `curl` inside the project with a small wrapper:
 
 ```bash
 #!/bin/sh
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-/usr/bin/curl -K "$SCRIPT_DIR/../.curlrc" "$@"
+/usr/bin/curl -K "$SCRIPT_DIR/.curlrc" "$@"
 ```
 
-The `.curlrc` config tells curl to read/write cookies from `./tmp/cookies.txt`:
+Saved as `${project_root}/bin/xcurl`, this behaves like curl but always loads a local `.curlrc`.
 
-```
+## Share cookies
+
+The `.curlrc` file persists the session:
+
+```ini
 cookie-jar = "./tmp/cookies.txt"
 cookie = "./tmp/cookies.txt"
 location
 ```
 
-A separate login script (`${project_root}/bin/login`) handles the bootstrap: fetch login page, extract CSRF token, POST credentials, save session to cookie jar. From that point on, every curl command automatically includes the session cookie.
+Once the cookie is there, all requests are authenticated.
 
-Add `bin/` to PATH via direnv:
+## Log in once
+
+A simple `bin/login` script performs the login flow (CSRF + POST credentials) using `xcurl`, which populates the cookie jar:
+
+```bash
+bin/login admin password
+```
+
+I do this once per session.
+
+## Make it available
+
+I use `direnv` to add `bin/` to `PATH`:
 
 ```bash
 # .envrc
 PATH_add bin
 ```
 
-Now the flow is simple. I run `${project_root}/bin/login admin password` once. Claude can immediately test any endpoint:
+Now when Claude runs commands in the project, it automatically uses `xcurl`.
+
+## Usage
+
+Claude can test authenticated endpoints directly:
 
 ```bash
-curl http://localhost:5000/api/users
-curl -X POST http://localhost:5000/api/sync
+xcurl http://localhost:5000/api/users
+xcurl -X POST http://localhost:5000/api/sync
 ```
 
-All authenticated, no manual cookie handling. Session persists until app timeout, then re-run login. The cookie jar goes in `.gitignore` since it contains active session tokens.
+I usually document this in `CLAUDE.md` to avoid confusion:
 
-This pattern works for AI e2e testing, CI/CD smoke tests, or just making API docs runnable without auth boilerplate.
+```markdown
+# Testing
+- use xcurl for API calls
+- if you get a 302 redirect, run `login admin password`
+```
 
+## Notes
 
-Next step: Playwright MCP for full browser automation when curl isn't enough.
+* Cookie-based auth only
+* Cookie file should not be committed
+
+Claude can verify what it generates, yay !
