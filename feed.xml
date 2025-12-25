@@ -10,57 +10,98 @@
     <item>
       <guid>https://gaultier.dev/2025/12/07/transparent-curl-wrapper-automated-session-management.html</guid>
       <link>https://gaultier.dev/2025/12/07/transparent-curl-wrapper-automated-session-management.html</link>
-      <title>Transparent curl Wrapper for Automated Session Management</title>
+      <title>Testing authenticated endpoints with Claude</title>
       <pubDate>Sun, 07 Dec 2025 20:00:00 +0000</pubDate>
-      <description>&lt;h1 id="transparent-curl-wrapper-for-automated-session-management"&gt;Transparent curl Wrapper for Automated Session Management&lt;/h1&gt;
+      <description>&lt;h1 id="testing-authenticated-endpoints-with-claude"&gt;Testing authenticated endpoints with Claude&lt;/h1&gt;
 
-&lt;p&gt;&lt;strong&gt;TL;DR&lt;/strong&gt;: PATH wrapper + shared .curlrc + login script = Claude can test authenticated endpoints without manual auth.&lt;/p&gt;
+&lt;div class="tldr"&gt;
+&lt;strong&gt;TL;DR&lt;/strong&gt;: I wrap curl and share a cookie jar so Claude can test authenticated endpoints without interactive login.
+&lt;/div&gt;
 
-&lt;p&gt;I wanted Claude to test my local web app. Problem: every API endpoint needs...&lt;/p&gt;</description>
+&lt;p&gt;While working on a backend app, I wanted Claude to be able to &lt;strong&gt;test the API it’s implementing&lt;/strong&gt;&lt;/p&gt;</description>
       <content:encoded>
-        <![CDATA[<h1 id="transparent-curl-wrapper-for-automated-session-management">Transparent curl Wrapper for Automated Session Management</h1>
+        <![CDATA[<h1 id="testing-authenticated-endpoints-with-claude">Testing authenticated endpoints with Claude</h1>
 
-<p><strong>TL;DR</strong>: PATH wrapper + shared .curlrc + login script = Claude can test authenticated endpoints without manual auth.</p>
+<div class="tldr">
+<strong>TL;DR</strong>: I wrap curl and share a cookie jar so Claude can test authenticated endpoints without interactive login.
+</div>
 
-<p>I wanted Claude to test my local web app. Problem: every API endpoint needs authentication. Claude can run curl, but can&#39;t handle interactive login or cookie management. Solution: intercept all curl commands and inject session cookies automatically.</p>
+<p>While working on a backend app, I wanted Claude to be able to <strong>test the API it’s implementing</strong>.</p>
 
-<p>The wrapper script lives in <code class="prettyprint">${project_root}/bin/curl</code> and shadows the system curl via PATH. It delegates to <code class="prettyprint">/usr/bin/curl</code> but injects <code class="prettyprint">-K .curlrc</code> to load shared config:</p>
+<p>Most endpoints are authenticated. Claude can run <code class="prettyprint">curl</code>, but it can’t log in interactively or keep cookies across commands. That means it gets stuck as soon as auth is involved.</p>
+
+<p>The trick is to log in once as a human, persist the session cookies, and make every curl call reuse them.</p>
+
+<h2 id="wrap-curl">Wrap curl</h2>
+
+<p>I shadow <code class="prettyprint">curl</code> inside the project with a small wrapper:</p>
 <div class="not-prose">
   <pre><code class="language-bash">#!/bin/sh
 SCRIPT_DIR=&quot;$(cd &quot;$(dirname &quot;$0&quot;)&quot; &amp;&amp; pwd)&quot;
-/usr/bin/curl -K &quot;$SCRIPT_DIR/../.curlrc&quot; &quot;$@&quot;
+/usr/bin/curl -K &quot;$SCRIPT_DIR/.curlrc&quot; &quot;$@&quot;
 </code></pre>
 </div>
 
-<p>The <code class="prettyprint">.curlrc</code> config tells curl to read/write cookies from <code class="prettyprint">./tmp/cookies.txt</code>:</p>
+<p>Saved as <code class="prettyprint">${project_root}/bin/xcurl</code>, this behaves like curl but always loads a local <code class="prettyprint">.curlrc</code>.</p>
+
+<h2 id="share-cookies">Share cookies</h2>
+
+<p>The <code class="prettyprint">.curlrc</code> file persists the session:</p>
 <div class="not-prose">
-  <pre><code class="">cookie-jar = &quot;./tmp/cookies.txt&quot;
+  <pre><code class="language-ini">cookie-jar = &quot;./tmp/cookies.txt&quot;
 cookie = &quot;./tmp/cookies.txt&quot;
 location
 </code></pre>
 </div>
 
-<p>A separate login script (<code class="prettyprint">${project_root}/bin/login</code>) handles the bootstrap: fetch login page, extract CSRF token, POST credentials, save session to cookie jar. From that point on, every curl command automatically includes the session cookie.</p>
+<p>Once the cookie is there, all requests are authenticated.</p>
 
-<p>Add <code class="prettyprint">bin/</code> to PATH via direnv:</p>
+<h2 id="log-in-once">Log in once</h2>
+
+<p>A simple <code class="prettyprint">bin/login</code> script performs the login flow (CSRF + POST credentials) using <code class="prettyprint">xcurl</code>, which populates the cookie jar:</p>
+<div class="not-prose">
+  <pre><code class="language-bash">bin/login admin password
+</code></pre>
+</div>
+
+<p>I do this once per session.</p>
+
+<h2 id="make-it-available">Make it available</h2>
+
+<p>I use <code class="prettyprint">direnv</code> to add <code class="prettyprint">bin/</code> to <code class="prettyprint">PATH</code>:</p>
 <div class="not-prose">
   <pre><code class="language-bash"># .envrc
 PATH_add bin
 </code></pre>
 </div>
 
-<p>Now the flow is simple. I run <code class="prettyprint">${project_root}/bin/login admin password</code> once. Claude can immediately test any endpoint:</p>
+<p>Now when Claude runs commands in the project, it automatically uses <code class="prettyprint">xcurl</code>.</p>
+
+<h2 id="usage">Usage</h2>
+
+<p>Claude can test authenticated endpoints directly:</p>
 <div class="not-prose">
-  <pre><code class="language-bash">curl http://localhost:5000/api/users
-curl -X POST http://localhost:5000/api/sync
+  <pre><code class="language-bash">xcurl http://localhost:5000/api/users
+xcurl -X POST http://localhost:5000/api/sync
 </code></pre>
 </div>
 
-<p>All authenticated, no manual cookie handling. Session persists until app timeout, then re-run login. The cookie jar goes in <code class="prettyprint">.gitignore</code> since it contains active session tokens.</p>
+<p>I usually document this in <code class="prettyprint">CLAUDE.md</code> to avoid confusion:</p>
+<div class="not-prose">
+  <pre><code class="language-markdown"># Testing
+- use xcurl for API calls
+- if you get a 302 redirect, run `login admin password`
+</code></pre>
+</div>
 
-<p>This pattern works for AI e2e testing, CI/CD smoke tests, or just making API docs runnable without auth boilerplate.</p>
+<h2 id="notes">Notes</h2>
 
-<p>Next step: Playwright MCP for full browser automation when curl isn&#39;t enough.</p>
+<ul>
+<li>Cookie-based auth only</li>
+<li>Cookie file should not be committed</li>
+</ul>
+
+<p>Claude can verify what it generates, yay !</p>
 ]]>
       </content:encoded>
     </item>
